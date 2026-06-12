@@ -1,1 +1,1498 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pyraminx OO — method solver</title>
+<meta name="description" content="Human-findable Pyraminx solutions through L4E, ML4E, L5E, TL4E and pseudo V — ranked by ergonomics.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300..800&family=Instrument+Sans:wght@400;500;600&family=Spline+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpolygon points='16,2 30,28 2,28' fill='%23f2cf3c'/%3E%3Cpolygon points='16,2 23,15 9,15' fill='%233fbf52'/%3E%3Cpolygon points='9,15 16,28 2,28' fill='%23e8473d'/%3E%3Cpolygon points='23,15 30,28 16,28' fill='%233a7fe8'/%3E%3C/svg%3E">
+<style>
 
+:root{
+  --ink:#0e1420; --ink2:#141c2c; --panel:#19222f; --panel2:#1f2a3a;
+  --line:rgba(174,190,214,.14); --line2:rgba(174,190,214,.26);
+  --txt:#e8edf6; --mut:#9fadc4; --dim:#6c7a92;
+  --green:#3fbf52; --red:#e8473d; --blue:#3a7fe8; --yellow:#f2cf3c;
+  --act:#f2cf3c; --actink:#231c05;
+  --disp:'Bricolage Grotesque',system-ui,sans-serif;
+  --body:'Instrument Sans',system-ui,sans-serif;
+  --mono:'Spline Sans Mono',ui-monospace,monospace;
+}
+*{box-sizing:border-box}
+html{background:var(--ink)}
+body{margin:0;font-family:var(--body);color:var(--txt);background:
+  radial-gradient(1200px 500px at 85% -10%, rgba(58,127,232,.08), transparent 60%),
+  radial-gradient(900px 480px at -10% 8%, rgba(63,191,82,.06), transparent 55%),
+  var(--ink);min-height:100vh;font-size:15.5px;line-height:1.55}
+a{color:var(--txt)}
+code,.mono{font-family:var(--mono)}
+button{font-family:var(--body);font-size:14.5px;cursor:pointer;border:none;border-radius:9px}
+button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--yellow);outline-offset:2px}
+.primary{background:var(--act);color:var(--actink);font-weight:600;padding:.62em 1.1em}
+.primary:hover{filter:brightness(1.07)}
+.primary[disabled]{opacity:.4;cursor:not-allowed}
+.ghost{background:transparent;color:var(--mut);border:1px solid var(--line2);padding:.55em 1em;border-radius:9px;text-decoration:none;display:inline-block}
+.ghost:hover{color:var(--txt);border-color:var(--mut)}
+.ghost.off{opacity:.3;pointer-events:none}
+.ghost.sm{padding:.3em .7em;font-size:13px}
+.ghost.big{font-size:16px;padding:.7em 1.4em}
+.danger{background:transparent;color:var(--red);border:1px solid rgba(232,71,61,.5);padding:.55em 1em}
+.danger:hover{background:rgba(232,71,61,.12)}
+
+/* top bar */
+.topbar{display:flex;align-items:center;gap:26px;padding:14px 26px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.wordmark{font-family:var(--disp);font-weight:700;font-size:19px;letter-spacing:.06em;text-decoration:none;display:flex;align-items:center;gap:9px}
+.wordmark b{color:var(--yellow);font-weight:800}
+.tri{width:17px;height:15px;display:inline-block;background:
+  conic-gradient(from 0deg at 50% 62%, var(--green) 0 90deg, var(--blue) 90deg 180deg, var(--red) 180deg 270deg, var(--yellow) 270deg 360deg);
+  clip-path:polygon(50% 0,100% 100%,0 100%)}
+.navtabs{display:flex;gap:4px;flex:1;flex-wrap:wrap}
+.navlink{text-decoration:none;color:var(--mut);padding:.45em .9em;border-radius:8px;font-weight:500}
+.navlink:hover{color:var(--txt)}
+.navlink.on{color:var(--txt);background:var(--panel2)}
+.authbox{display:flex;align-items:center;gap:12px}
+.whoami{color:var(--mut);font-size:14px}
+.demobadge{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--yellow);border:1px dashed rgba(242,207,60,.5);border-radius:6px;padding:2px 8px}
+
+.page{max-width:1060px;margin:0 auto;padding:30px 24px 80px}
+
+/* home */
+.homeintro{margin:34px 0 24px;max-width:640px}
+.homeintro h1{font-family:var(--disp);font-weight:700;font-size:clamp(24px,3.4vw,32px);line-height:1.18;margin:0 0 12px;letter-spacing:-.005em}
+.lede{color:var(--mut);margin:0;max-width:58ch}
+.lede.sm{font-size:14.5px}
+.progressblock{margin:0 0 26px;max-width:640px}
+.progressline{color:var(--mut);font-size:14px;margin:9px 0 0}
+.progressline b{color:var(--txt);font-weight:600}
+.progressline .pct{color:var(--yellow)}
+.barwrap{height:10px;border-radius:6px;background:var(--panel2);overflow:hidden;border:1px solid var(--line)}
+.bar{height:100%;border-radius:6px;background:linear-gradient(90deg,var(--green),var(--yellow));min-width:2px;transition:width .8s ease}
+.homelinks{display:flex;gap:10px;flex-wrap:wrap}
+
+/* search */
+.searchrow{display:flex;gap:10px;margin:0 0 18px;max-width:640px}
+.searchin{flex:1;background:var(--panel);border:1px solid var(--line2);border-radius:10px;color:var(--txt);padding:.7em .95em;font-size:14.5px}
+.searchin::placeholder{color:var(--dim)}
+
+/* cards */
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px 22px}
+.card.error{border-color:rgba(232,71,61,.5);color:var(--red)}
+.card h3{font-family:var(--disp);font-weight:650;margin:0 0 8px;font-size:17px}
+.card p{color:var(--mut);margin:0;font-size:14.5px}
+.empty{color:var(--dim);font-style:italic}
+
+/* pair page */
+.crumbs{color:var(--dim);font-size:13.5px;margin-bottom:14px}
+.crumbs a{color:var(--mut)}
+.pairrow{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+.pairrow.single{grid-template-columns:minmax(0,640px);justify-content:center}
+.sidepanel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px}
+.sidehead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+.sidelabel{font-family:var(--disp);font-weight:650;font-size:15px;letter-spacing:.02em}
+.ordinal{margin-left:auto;color:var(--dim);font-size:13px}
+.depthchip{font-size:12px;border-radius:6px;padding:2px 8px;background:var(--panel2);color:var(--mut);border:1px solid var(--line)}
+.donechip{font-size:12px;border-radius:6px;padding:2px 8px;color:var(--green);border:1px solid rgba(63,191,82,.5)}
+.viewtoggle{display:flex;align-items:center;gap:6px;margin:6px 0 2px}
+.viewbtn{background:transparent;border:1px solid var(--line2);color:var(--mut);border-radius:7px;padding:.2em .7em;font-size:12.5px}
+.viewbtn.on{color:var(--actink);background:var(--act);border-color:var(--act);font-weight:600}
+.viewhint{color:var(--dim);font-size:12px;margin-left:6px}
+.netwrap{display:flex;justify-content:center;padding:8px 0 12px;min-height:200px;align-items:center;touch-action:none}
+.netwrap.grab{cursor:grab}
+.netwrap.grab:active{cursor:grabbing}
+.oonet polygon{stroke:var(--ink);stroke-width:.018;stroke-linejoin:round}
+.oonet .dcap{font-size:.13px;fill:var(--dim);font-family:var(--body)}
+.oonet.oo3d polygon{stroke-width:.022}
+.scrline{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:6px 0}
+.scrlabel{font-size:11.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);white-space:nowrap}
+.scr{font-size:15px;color:var(--txt);word-break:break-word}
+.copy{background:transparent;border:1px solid var(--line2);color:var(--mut);border-radius:7px;padding:.15em .5em;font-size:14px}
+.copy:hover{color:var(--txt)}
+.symhead{font-size:13px;color:var(--mut);margin:10px 0 6px}
+.hintt{color:var(--dim)}
+.symstrip{display:flex;gap:6px;flex-wrap:wrap}
+.symthumb{background:var(--ink2);border:1px solid var(--line);border-radius:9px;padding:4px;line-height:0}
+.symthumb:hover{border-color:var(--mut)}
+.symthumb.on{border-color:var(--yellow)}
+.symdetail{display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-height:1.6em;margin-top:8px}
+
+/* solutions */
+.solcard{margin-bottom:16px}
+.solrow{display:grid;grid-template-columns:1fr 1fr auto;gap:14px;align-items:center;padding:12px 0;border-top:1px solid var(--line)}
+.solrow:first-of-type{border-top:none}
+.solrow.pending{opacity:.65}
+.solcell{display:flex;flex-direction:column;gap:4px}
+.soltag{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
+.soltag.auto{color:var(--blue)}
+.sol{font-size:15.5px}
+.solmeta{color:var(--mut);font-size:13.5px;white-space:nowrap}
+.solin{width:100%;background:var(--ink2);border:1px solid var(--line2);border-radius:10px;color:var(--txt);padding:.7em .9em;font-size:15.5px;resize:vertical;margin-bottom:8px}
+.verifyline{font-size:13.5px;color:var(--dim);min-height:1.5em;margin-bottom:8px}
+.verifyline.good{color:var(--green)}
+.verifyline.bad{color:var(--red)}
+.namerow{display:flex;align-items:center;gap:8px;color:var(--mut);font-size:14px;margin-bottom:14px}
+
+/* browse */
+.browsehead h2{font-family:var(--disp);font-weight:700;margin:0 0 6px}
+.depthchips{display:flex;gap:7px;flex-wrap:wrap;margin:16px 0 22px}
+.depthsel{display:flex;flex-direction:column;align-items:center;gap:1px;text-decoration:none;border:1px solid var(--line);border-radius:10px;padding:7px 11px;min-width:62px;background:var(--panel)}
+.depthsel b{font-family:var(--disp);font-size:17px}
+.depthsel span{font-size:11px;color:var(--dim)}
+.depthsel:hover{border-color:var(--mut)}
+.depthsel.on{border-color:var(--yellow);background:var(--panel2)}
+.classgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(138px,1fr));gap:10px}
+.classcell{background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:9px 8px 6px;text-decoration:none;text-align:center}
+.classcell:hover{border-color:var(--mut)}
+.classcell.done{border-color:rgba(63,191,82,.45)}
+.cellmeta{font-size:12px;color:var(--dim);margin-top:3px}
+.tick{color:var(--green)}
+.pager{display:flex;align-items:center;gap:14px;margin-top:20px;flex-wrap:wrap}
+.pginfo{color:var(--dim);font-size:13.5px}
+
+/* mod */
+.modrow{display:grid;grid-template-columns:auto 1fr auto;gap:18px;align-items:center;margin-bottom:12px}
+.modacts{display:flex;flex-direction:column;gap:8px}
+.modlist{margin:10px 0}
+.modent{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 0;border-top:1px solid var(--line);color:var(--mut);font-size:14.5px}
+.modent:first-child{border-top:none}
+.inviterow{display:flex;gap:10px;margin-top:10px}
+
+/* about */
+.prose h2{font-family:var(--disp);font-weight:700;margin-top:0}
+.prose h3{font-family:var(--disp);font-weight:650;margin:22px 0 6px}
+.prose p{color:var(--mut);font-size:15px;max-width:72ch}
+.nottable{display:grid;gap:0;margin:8px 0}
+.nrow{display:grid;grid-template-columns:190px 230px 1fr;gap:14px;padding:9px 0;border-top:1px solid var(--line);font-size:14px;color:var(--mut)}
+.nrow:first-child{border-top:none}
+.nrow b{color:var(--txt);font-weight:600}
+.nrow code{color:var(--yellow)}
+
+/* toast + boot */
+.toast{position:fixed;left:50%;bottom:28px;transform:translate(-50%,16px);background:var(--panel2);border:1px solid var(--line2);color:var(--txt);padding:.7em 1.2em;border-radius:11px;opacity:0;transition:all .3s ease;z-index:50;max-width:90vw}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+#boot-status{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;background:var(--ink);z-index:40;transition:opacity .4s ease}
+#boot-status.gone{opacity:0;pointer-events:none}
+#boot-status .bigtri{width:74px;height:64px;background:conic-gradient(from 0deg at 50% 62%, var(--green) 0 90deg, var(--blue) 90deg 180deg, var(--red) 180deg 270deg, var(--yellow) 270deg 360deg);clip-path:polygon(50% 0,100% 100%,0 100%);animation:pulse 1.6s ease-in-out infinite}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.07)}}
+@media(prefers-reduced-motion:reduce){#boot-status .bigtri{animation:none}.bar{transition:none}}
+#boot-label{color:var(--mut);font-size:14.5px}
+#boot-hint{color:var(--dim);font-size:12.5px;max-width:40ch;text-align:center}
+#boot-track{width:280px;height:8px;border-radius:5px;background:var(--panel2);overflow:hidden;border:1px solid var(--line)}
+#boot-bar{height:100%;width:0;background:linear-gradient(90deg,var(--green),var(--yellow));transition:width .25s ease}
+
+@media(max-width:860px){
+  .pairrow{grid-template-columns:1fr}
+  .solrow{grid-template-columns:1fr;gap:6px}
+  .modrow{grid-template-columns:1fr}
+  .nrow{grid-template-columns:1fr;gap:2px}
+  .topbar{gap:12px}
+}
+
+/* ---- solver-specific ---- */
+.methodrow{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 4px}
+.methodchip{font:600 13.5px 'Instrument Sans',sans-serif;color:var(--mut);background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:7px 14px;cursor:pointer;transition:all .15s ease}
+.methodchip:hover{color:var(--paper);border-color:var(--mut)}
+.methodchip.on{color:var(--ink);background:var(--yellow);border-color:var(--yellow)}
+.offsetrow{display:flex;align-items:center;gap:10px;margin:10px 0 4px}
+.scrlabel{font:600 11.5px 'Spline Sans Mono',monospace;letter-spacing:.12em;text-transform:uppercase;color:var(--mut);white-space:nowrap}
+.searchin.sm{padding:9px 12px;font-size:14px}
+.optcard{margin:16px 0;padding:0;overflow:hidden}
+.opthead{display:block;width:100%;text-align:left;font:600 13.5px 'Instrument Sans',sans-serif;color:var(--mut);background:none;border:none;padding:13px 16px;cursor:pointer}
+.opthead:hover{color:var(--paper)}
+.optgrid{display:grid;grid-template-columns:1fr 1fr;gap:24px;padding:4px 18px 18px}
+@media(max-width:740px){.optgrid{grid-template-columns:1fr}}
+.optcol h4{font:600 11.5px 'Spline Sans Mono',monospace;letter-spacing:.12em;text-transform:uppercase;color:var(--mut);margin:14px 0 8px}
+.optcol h4:first-child{margin-top:4px}
+.caprow{display:flex;flex-wrap:wrap;gap:10px}
+.capin{display:flex;flex-direction:column;gap:4px;font:500 12px 'Instrument Sans',sans-serif;color:var(--mut)}
+.capin input{width:62px;background:var(--panel);border:1px solid var(--line);border-radius:8px;color:var(--paper);font:600 14px 'Spline Sans Mono',monospace;padding:6px 8px}
+.sliderrow{display:flex;align-items:center;gap:10px;margin:7px 0;font:500 13px 'Instrument Sans',sans-serif;color:var(--paper)}
+.sliderlabel{flex:1 1 auto;color:var(--mut)}
+.sliderrow input[type=range]{flex:0 0 130px;accent-color:var(--yellow)}
+.sliderrow select{background:var(--panel);border:1px solid var(--line);border-radius:8px;color:var(--paper);font:500 13px 'Instrument Sans',sans-serif;padding:6px 8px}
+.sliderblock{margin:9px 0}
+.sliderhint{font:400 12px 'Instrument Sans',sans-serif;color:var(--mut);margin:2px 0 0;line-height:1.45}
+.opthint{font:400 12.5px 'Instrument Sans',sans-serif;color:var(--mut);margin:0 0 10px;line-height:1.5}
+.sliderval{font:600 13px 'Spline Sans Mono',monospace;color:var(--yellow);min-width:34px;text-align:right}
+.depthchips{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0 6px}
+.depthsel{display:flex;flex-direction:column;align-items:center;gap:2px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:8px 14px;cursor:pointer;color:var(--mut);transition:all .15s ease}
+.depthsel b{font:700 17px 'Bricolage Grotesque',sans-serif;color:var(--paper)}
+.depthsel span{font:500 11px 'Instrument Sans',sans-serif}
+.depthsel:hover{border-color:var(--mut)}
+.depthsel.on{border-color:var(--yellow)}
+.depthsel.on b{color:var(--yellow)}
+.depthsel.gated{opacity:.55}
+.counttag{font:500 12.5px 'Instrument Sans',sans-serif;color:var(--mut);margin-left:10px}
+.solcard{margin:14px 0;padding:14px 16px}
+.solcard h3{font:600 17px 'Bricolage Grotesque',sans-serif;margin:2px 0 10px}
+.solverrow{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:8px 0;border-top:1px solid var(--line)}
+.solcell{display:flex;align-items:center;gap:8px;flex:1 1 320px;min-width:0}
+.sol{font:500 14.5px 'Spline Sans Mono',monospace;color:var(--paper);overflow-wrap:anywhere}
+.badgecell{display:flex;gap:6px;flex-wrap:wrap}
+.mbadge{font:600 11px 'Spline Sans Mono',monospace;letter-spacing:.04em;color:var(--ink);background:var(--green);border-radius:6px;padding:3px 7px;cursor:default}
+.scorechip{font:600 13px 'Spline Sans Mono',monospace;color:var(--yellow);min-width:44px;text-align:right}
+.warnline{color:var(--yellow);font:500 13.5px 'Instrument Sans',sans-serif;margin:10px 2px}
+.hintline{max-width:560px}
+.pairrow.single{grid-template-columns:minmax(0,420px);justify-content:start}
+.ghost.sm{font-size:12.5px;padding:6px 12px;margin-top:8px}
+</style>
+</head>
+<body>
+<div id="boot-status">
+  <div class="bigtri" aria-hidden="true"></div>
+  <div id="boot-label">Waking up…</div>
+  <div id="boot-track"><div id="boot-bar"></div></div>
+  <div id="boot-hint">Uses the same cached position map as the home page — if you’ve visited it, this loads instantly.</div>
+</div>
+<div id="app"></div>
+<script>
+(function(){const module={exports:{}};
+// Pyraminx OO engine — full no-tips state space (933,120 states), 12 rotations + LR mirror.
+// State: { e:[piece,flip]x6 slots, c:[L,R,B] axial twists, u: U axial twist }
+// Slots: 0=UL 1=UR 2=UB 3=DF 4=DL 5=DR  (face pairs in XO below)
+// Faces: F, Lf, Rf, D.  Corners (move axes): U,L,R,B — corner X is opposite face OPP[X].
+
+const FACES = ['F', 'Lf', 'Rf', 'D'];
+const XO = [['F','Lf'],['F','Rf'],['Lf','Rf'],['F','D'],['Lf','D'],['Rf','D']];
+const OPP = { U:'D', L:'Rf', R:'Lf', B:'F' };           // corner -> opposite face
+const COPP = { D:'U', Rf:'L', Lf:'R', F:'B' };          // face -> opposite corner
+
+// Move tables (validated against the trainer's engine over 1561 sheet algorithms)
+const S4 = {
+  U: { cyc: [[0,2,0],[2,1,1],[1,0,1]], center: -1 },
+  R: { cyc: [[1,5,0],[5,3,1],[3,1,1]], center: 1 },
+  L: { cyc: [[0,3,1],[3,4,1],[4,0,0]], center: 0 },
+  B: { cyc: [[2,4,1],[4,5,1],[5,2,0]], center: 2 },
+};
+// Whole-puzzle rotations about each corner axis: how FACES move (one CW step)
+const G4 = {
+  U: { F:'Lf', Lf:'Rf', Rf:'F', D:'D' },
+  R: { F:'Rf', Rf:'D', D:'F', Lf:'Lf' },
+  L: { F:'D', D:'Lf', Lf:'F', Rf:'Rf' },
+  B: { Lf:'D', D:'Rf', Rf:'Lf', F:'F' },
+};
+
+function solved() { return { e: [0,0,1,0,2,0,3,0,4,0,5,0], c: [0,0,0], u: 0 }; }
+function copy(s) { return { e: s.e.slice(), c: s.c.slice(), u: s.u }; }
+function eq(a, b) { return a.u === b.u && a.e.join() === b.e.join() && a.c.join() === b.c.join(); }
+
+// prime=false: one CW turn.  U also twists the U axial center (tracked in .u).
+function move(s, f, prime) {
+  const n = prime ? 2 : 1;
+  for (let k = 0; k < n; k++) {
+    const r = s.e.slice();
+    for (const [i, o, fl] of S4[f].cyc) { s.e[o*2] = r[i*2]; s.e[o*2+1] = r[i*2+1] ^ fl; }
+    if (S4[f].center >= 0) s.c[S4[f].center] = (s.c[S4[f].center] + 1) % 3;
+    else s.u = (s.u + 1) % 3;
+  }
+  return s;
+}
+const MOVES = ['U',"U'",'L',"L'",'R',"R'",'B',"B'"];
+function applyMoveIdx(s, m) { return move(s, MOVES[m][0], MOVES[m].length > 1); }
+
+// ---------------- indexing ----------------
+// index = ((permRank720 * 64 + flipBits) * 27 + c) * 3 + u   — 3,732,480 slots, 933,120 reachable
+const FACT = [1,1,2,6,24,120,720];
+function permRank(p) {
+  let r = 0; const a = p.slice();
+  for (let i = 0; i < 6; i++) {
+    let m = 0; for (let j = i+1; j < 6; j++) if (a[j] < a[i]) m++;
+    r += m * FACT[5 - i];
+  }
+  return r;
+}
+function permUnrank(r) {
+  const avail = [0,1,2,3,4,5], p = [];
+  for (let i = 5; i >= 0; i--) { const d = Math.floor(r / FACT[i]); r %= FACT[i]; p.push(avail.splice(d,1)[0]); }
+  return p;
+}
+function idx(s) {
+  const p = [s.e[0],s.e[2],s.e[4],s.e[6],s.e[8],s.e[10]];
+  let fb = 0; for (let i = 0; i < 6; i++) fb |= s.e[i*2+1] << i;
+  const c = s.c[0]*9 + s.c[1]*3 + s.c[2];
+  return ((permRank(p)*64 + fb)*27 + c)*3 + s.u;
+}
+function unidx(ix) {
+  const u = ix % 3; ix = (ix - u) / 3;
+  const c = ix % 27; ix = (ix - c) / 27;
+  const fb = ix % 64; const pr = (ix - fb) / 64;
+  const p = permUnrank(pr), e = new Array(12);
+  for (let i = 0; i < 6; i++) { e[i*2] = p[i]; e[i*2+1] = (fb >> i) & 1; }
+  return { e, c: [Math.floor(c/9), Math.floor(c/3)%3, c%3], u };
+}
+const NSLOTS = 720*64*27*3;
+
+// ---------------- symmetries ----------------
+// A face permutation sigma induces: slot map, flip-toggle per slot, corner map.
+// flip rule: new flip = old flip ^ rev[slot] ^ rev[pieceHomeSlot]  (validated below by
+// the homomorphism test sigma(m·s) == sigma(m)·sigma(s) over all generators).
+function faceCompose(a, b) { const r = {}; for (const f of FACES) r[f] = a[b[f]]; return r; }
+const FACE_ID = { F:'F', Lf:'Lf', Rf:'Rf', D:'D' };
+
+function slotOf(a, b) {
+  for (let i = 0; i < 6; i++) {
+    if (XO[i][0] === a && XO[i][1] === b) return [i, 0];
+    if (XO[i][0] === b && XO[i][1] === a) return [i, 1];
+  }
+  throw new Error('bad pair ' + a + ',' + b);
+}
+function symFromFacePerm(fp, mirror) {
+  const slot = new Array(6), rev = new Array(6);
+  for (let i = 0; i < 6; i++) {
+    const [a, b] = XO[i];
+    const [j, r] = slotOf(fp[a], fp[b]);
+    slot[i] = j; rev[i] = r;
+  }
+  // corner map via face opposition: corner X -> COPP[ fp[ OPP[X] ] ]
+  const corner = {};
+  for (const x of ['U','L','R','B']) corner[x] = COPP[fp[OPP[x]]];
+  return { fp, slot, rev, corner, mirror: !!mirror };
+}
+function applySym(sym, s) {
+  const o = { e: new Array(12), c: [0,0,0], u: 0 };
+  for (let i = 0; i < 6; i++) {
+    const pc = s.e[i*2], fl = s.e[i*2+1];
+    o.e[sym.slot[i]*2] = sym.slot[pc];
+    o.e[sym.slot[i]*2+1] = fl ^ sym.rev[i] ^ sym.rev[pc];
+  }
+  const tw = { L: s.c[0], R: s.c[1], B: s.c[2], U: s.u };
+  const out = {};
+  for (const x of ['U','L','R','B']) {
+    let t = tw[x];
+    if (sym.mirror) t = (3 - t) % 3;
+    out[sym.corner[x]] = t;
+  }
+  o.c = [out.L, out.R, out.B]; o.u = out.U;
+  return o;
+}
+// move letter mapping under a symmetry: physical axis follows the corner map;
+// a mirror also inverts the turn direction.
+function symMoveIdx(sym, m) {
+  const f = MOVES[m][0], pr = MOVES[m].length > 1;
+  const nf = sym.corner[f];
+  const npr = sym.mirror ? !pr : pr;
+  return MOVES.indexOf(nf + (npr ? "'" : ''));
+}
+
+// generate the 12 rotations (A4 on faces) + the LR mirror
+function buildSyms() {
+  const seen = new Map(); const queue = [FACE_ID];
+  seen.set(JSON.stringify(FACE_ID), FACE_ID);
+  while (queue.length) {
+    const fp = queue.pop();
+    for (const g of ['U','R','L','B']) {
+      const nf = faceCompose(G4[g], fp);
+      const k = JSON.stringify(nf);
+      if (!seen.has(k)) { seen.set(k, nf); queue.push(nf); }
+    }
+  }
+  const rots = [...seen.values()].map(fp => symFromFacePerm(fp, false));
+  if (rots.length !== 12) throw new Error('expected 12 rotations, got ' + rots.length);
+  const mirrorFp = { F:'F', Lf:'Rf', Rf:'Lf', D:'D' };
+  const mirrors = rots.map(r => symFromFacePerm(faceCompose(r.fp, mirrorFp), true));
+  return { rots, mirrors, all: rots.concat(mirrors) };
+}
+
+// ---------------- canonicalization ----------------
+function makeCanon(syms) {
+  return function canon(s) {
+    let best = Infinity;
+    for (const sym of syms.rots) { const v = idx(applySym(sym, s)); if (v < best) best = v; }
+    return best;
+  };
+}
+function makeMirrorCanon(syms) {
+  return function mcanon(s) {
+    let best = Infinity;
+    for (const sym of syms.mirrors) { const v = idx(applySym(sym, s)); if (v < best) best = v; }
+    return best;
+  };
+}
+
+// ---------------- BFS distance table ----------------
+function bfs(progress) {
+  const dist = new Int8Array(NSLOTS).fill(-1);
+  let frontier = [solved()];
+  dist[idx(solved())] = 0;
+  let d = 0, total = 1;
+  while (frontier.length) {
+    const next = [];
+    for (const s of frontier) for (let m = 0; m < 8; m++) {
+      const t = copy(s); applyMoveIdx(t, m);
+      const i = idx(t);
+      if (dist[i] === -1) { dist[i] = d + 1; next.push(t); }
+    }
+    d++; total += next.length;
+    if (progress) progress(d, next.length, total);
+    frontier = next;
+  }
+  return dist;
+}
+
+// ---------------- solution / scramble parsing ----------------
+// Tokens: U L R B (+' or 2), wides Uw Lw Rw Bw (1 move), rotations [u] [l] [r] [b] / y (0 moves),
+// lowercase u l r b = tips -> dropped. X2 == X'. Wides follow the sheet convention:
+// Rw = L [l'],  Lw = R [r'],  Uw = B [b'],  Bw = U [u'].
+const WIDE = { R: ['L','L'], L: ['R','R'], U: ['B','B'], B: ['U','U'] }; // [moveLetter, rotAxis] with inverse rotation
+function parseAlg(str) {
+  const out = []; // {kind:'move'|'rot', f, amt(1|2), wide}
+  const toks = String(str).replace(/[()，,]/g, ' ').trim().split(/\s+/).filter(Boolean);
+  for (let t of toks) {
+    if (!t) continue;
+    let m;
+    if ((m = t.match(/^\[([ulrb])(2|')?\]$/))) { // rotation [u] [l'] [r2]...
+      out.push({ kind: 'rot', f: m[1].toUpperCase(), amt: m[2] === '2' || m[2] === "'" ? 2 : 1 });
+      continue;
+    }
+    if ((m = t.match(/^(y)(2|')?$/))) { out.push({ kind: 'rot', f: 'U', amt: m[2] ? 2 : 1 }); continue; }
+    if ((m = t.match(/^([ULRB])w(2|')?$/))) {
+      out.push({ kind: 'move', f: m[1], amt: m[2] ? 2 : 1, wide: true });
+      continue;
+    }
+    if ((m = t.match(/^([ULRB])(2|')?$/))) {
+      out.push({ kind: 'move', f: m[1], amt: m[2] ? 2 : 1, wide: false });
+      continue;
+    }
+    if (/^[ulrb](2|')?$/.test(t)) continue; // tip move -> dropped
+    return null; // unparseable token
+  }
+  return out;
+}
+function countMoves(parsed) { let n = 0; for (const t of parsed) if (t.kind === 'move') n++; return n; }
+
+// Apply parsed tokens to a state, tracking the rotation frame.
+// frame: face-perm mapping written letters to physical axes via corner map.
+function makeFrames(syms) {
+  // Rotation about corner X, one step in the SAME direction as move X, as a sym object.
+  // Anchored to the move tables: move X's edge cycle dictates where each adjacent corner
+  // travels under the whole-puzzle rotation [x]; we pick the sym whose frame behavior
+  // (through the same composeSym path applyParsed uses) matches that geometry.
+  const EDGE_CORNER = { U: { 0: 'L', 1: 'R', 2: 'B' }, L: { 0: 'U', 3: 'R', 4: 'B' },
+                        R: { 1: 'U', 3: 'L', 5: 'B' }, B: { 2: 'U', 4: 'L', 5: 'R' } };
+  const OPP_FACE = { U: 'D', L: 'Rf', R: 'Lf', B: 'F' };
+  const ID = symFromFacePerm(FACE_ID, false);
+  const rotByCorner = {};
+  for (const x of ['U', 'L', 'R', 'B']) {
+    const mv = solved(); move(mv, x, false);
+    const slots = Object.keys(EDGE_CORNER[x]).map(Number);
+    const posHolds = {}; // position W -> physical corner that lands there under [x]
+    for (const p of slots) {
+      let j = -1;
+      for (const q of slots) if (mv.e[q * 2] === p) { j = q; break; }
+      posHolds[EDGE_CORNER[x][j]] = EDGE_CORNER[x][p];
+    }
+    let pick = null;
+    for (const sym of syms.rots) {
+      if (sym.fp[OPP_FACE[x]] !== OPP_FACE[x]) continue;
+      if (FACES.every(f => sym.fp[f] === f)) continue;
+      const frame = composeSym(sym, ID); // frame after one [x] token
+      if (Object.keys(posHolds).every(W => frame.corner[W] === posHolds[W])) { pick = sym; break; }
+    }
+    if (!pick) throw new Error('rotation anchor failed for ' + x);
+    rotByCorner[x] = pick;
+  }
+  return rotByCorner;
+}
+function applyParsed(parsed, state, syms, rotByCorner) {
+  let s = copy(state);
+  // frame = sym whose corner map sends WRITTEN letters to PHYSICAL axes; starts identity
+  let frame = symFromFacePerm(FACE_ID, false);
+  for (const t of parsed) {
+    if (t.kind === 'rot') {
+      // rotating the puzzle about written axis t.f; physical axis = frame.corner[f]
+      const phys = frame.corner[t.f];
+      for (let k = 0; k < t.amt; k++) frame = composeSym(rotByCorner[phys], frame);
+      continue;
+    }
+    let f = t.f, amt = t.amt, extraRot = null;
+    if (t.wide) { const [mv, axis] = WIDE[t.f]; f = mv; extraRot = axis; }
+    const phys = frame.corner[f];
+    for (let k = 0; k < amt; k++) move(s, phys, false);
+    if (extraRot) {
+      const physAxis = frame.corner[extraRot];
+      // inverse rotation = two CW steps
+      const steps = amt === 1 ? 2 : 1; // [x'] for Xw, [x] for Xw' (inverse of inverse)
+      for (let k = 0; k < steps; k++) frame = composeSym(rotByCorner[physAxis], frame);
+    }
+  }
+  return s;
+}
+function composeSym(a, b) { // apply b then a
+  const fp = faceCompose(a.fp, b.fp);
+  return symFromFacePerm(fp, a.mirror !== b.mirror);
+}
+
+// mirror a solution string token-by-token (LR mirror): R<->L, U->U', B->B', primes flip; rotations/wides likewise
+function mirrorToken(t) {
+  const map = { U:'U', B:'B', R:'L', L:'R', u:'u', b:'b', r:'l', l:'r' };
+  let m;
+  if ((m = t.match(/^\[([ulrb])(2|')?\]$/))) {
+    const f = map[m[1]]; const p = m[2] ? '' : "'";
+    return '[' + f + p + ']';
+  }
+  if ((m = t.match(/^(y)(2|')?$/))) return m[2] ? 'y' : "y'";
+  if ((m = t.match(/^([ULRB])(w?)(2|')?$/))) {
+    const f = map[m[1]]; const w = m[2]; const p = m[3] ? '' : "'";
+    return f + w + p;
+  }
+  if ((m = t.match(/^([ulrb])(2|')?$/))) { const f = map[m[1]]; const p = m[2] ? '' : "'"; return f + p; }
+  return t;
+}
+function mirrorAlg(str) {
+  return String(str).trim().split(/\s+/).filter(Boolean).map(mirrorToken).join(' ');
+}
+
+// optimal solution from a state via the distance table (random tie-breaks if rand)
+function optimalSolution(state, dist, rand) {
+  const s = copy(state); const out = [];
+  let d = dist[idx(s)];
+  if (d < 0) return null;
+  while (d > 0) {
+    const opts = [];
+    for (let m = 0; m < 8; m++) {
+      const t = copy(s); applyMoveIdx(t, m);
+      if (dist[idx(t)] === d - 1) opts.push(m);
+    }
+    const m = rand ? opts[Math.floor(Math.random()*opts.length)] : opts[0];
+    applyMoveIdx(s, m); out.push(MOVES[m]); d--;
+  }
+  return out.join(' ');
+}
+function invertAlg(str) {
+  return str.split(/\s+/).filter(Boolean).reverse()
+    .map(t => t.endsWith("'") ? t.slice(0, -1) : t + "'").join(' ');
+}
+// optimal scramble TO a state = inverse of an optimal solution of that state
+function optimalScramble(state, dist, rand) {
+  const sol = optimalSolution(state, dist, rand);
+  return sol === null ? null : (sol === '' ? '' : invertAlg(sol));
+}
+function applyScramble(str, base) {
+  const s = base ? copy(base) : solved();
+  const parsed = parseAlg(str);
+  if (!parsed) return null;
+  for (const t of parsed) {
+    if (t.kind === 'rot' || t.wide) return null; // scrambles: plain moves only
+    for (let k = 0; k < t.amt; k++) move(s, t.f, false);
+  }
+  return s;
+}
+
+module.exports = {
+  FACES, XO, S4, G4, OPP, COPP, MOVES, NSLOTS,
+  solved, copy, eq, move, applyMoveIdx, idx, unidx,
+  buildSyms, symFromFacePerm, applySym, symMoveIdx, composeSym, makeCanon, makeMirrorCanon,
+  bfs, parseAlg, countMoves, applyParsed, makeFrames, mirrorAlg, mirrorToken,
+  optimalSolution, optimalScramble, invertAlg, applyScramble, faceCompose, FACE_ID,
+};
+
+window.OOEngine=module.exports;})();
+</script>
+<script>
+(function(){
+// Pyraminx OO — renderer v2.
+// 2D: the community-standard top-down diagram (exact port of the V-First Trainer's
+//     geometry: looking down at the U corner, faces F/Lf/Rf around it, per-face shading,
+//     tips drawn twisted together with their axial center), plus a small inset showing
+//     the bottom (D) face as seen by tipping the puzzle forward.
+// 3D: orthographic render of the real tetrahedron, rotatable (yaw/pitch).
+const E = typeof require !== 'undefined' ? require('./engine.js') : window.OOEngine;
+
+const COLORS = { F: '#3fbf52', Lf: '#e8473d', Rf: '#3a7fe8', D: '#f2cf3c' };
+// per-face brightness, as in the trainer (depth cue); D inset is its own viewpoint
+const SHADE = { F: 1, Lf: .82, Rf: .91, D: .94 };
+
+function shade(hex, f) {
+  if (f >= 1) return hex;
+  const v = parseInt(hex.slice(1), 16);
+  const ch = sh => Math.round(((v >> sh) & 255) * f).toString(16).padStart(2, '0');
+  return '#' + ch(16) + ch(8) + ch(0);
+}
+
+/* ---- sticker subdivision (exact port of the trainer's m4 scheme) ----
+   corners: [n,L,l] corner names; pts: their positions (any dimension).
+   Tips and axial centers share twist coloring; edges resolve via slot+side. */
+function subdivide(face, cornerNames, pts) {
+  const [n, L, l] = cornerNames, [r, i, o] = pts;
+  const dim = r.length;
+  const s = (p, q) => { const out = new Array(dim);
+    for (let d = 0; d < dim; d++) out[d] = r[d] + p / 3 * (i[d] - r[d]) + q / 3 * (o[d] - r[d]);
+    return out; };
+  const c = (p, q) => [s(p, q), s(p + 1, q), s(p, q + 1)];           // upright
+  const f = (p, q) => [s(p + 1, q), s(p, q + 1), s(p + 1, q + 1)];   // inverted
+  const st = [
+    { pts: c(0,0), kind: 'tip',    ref: n }, { pts: c(2,0), kind: 'tip',    ref: L }, { pts: c(0,2), kind: 'tip',    ref: l },
+    { pts: f(0,0), kind: 'center', ref: n }, { pts: f(1,0), kind: 'center', ref: L }, { pts: f(0,1), kind: 'center', ref: l },
+    { pts: c(1,0), kind: 'edge', pair: [n, L] }, { pts: c(0,1), kind: 'edge', pair: [n, l] }, { pts: c(1,1), kind: 'edge', pair: [L, l] },
+  ];
+  for (const x of st) {
+    x.face = face;
+    if (x.kind === 'edge') { const [slot, side] = edgeSlotFor(face, x.pair); x.slot = slot; x.side = side; }
+  }
+  return st;
+}
+function edgeSlotFor(face, pairCorners) {
+  const cs = ['U','L','R','B'].filter(x => E.OPP[x] !== face);
+  const third = cs.find(x => !pairCorners.includes(x));
+  const g = E.OPP[third];
+  for (let i = 0; i < 6; i++) {
+    const [a, b] = E.XO[i];
+    if ((a === face && b === g) || (a === g && b === face)) return [i, a === face ? 0 : 1];
+  }
+  throw new Error('no slot for ' + face + '/' + g);
+}
+
+/* ---- color resolution (identical math to the trainer's v4 / edge formula) ---- */
+function axialColor(state, corner, face) {
+  const tw = corner === 'U' ? state.u : state.c[{ L: 0, R: 1, B: 2 }[corner]];
+  let f = face;
+  for (let k = 0; k < tw; k++) f = Object.keys(E.G4[corner]).find(x => E.G4[corner][x] === f);
+  return f;
+}
+function stickerColor(state, s) {
+  if (s.kind === 'tip' || s.kind === 'center') return axialColor(state, s.ref, s.face);
+  return E.XO[state.e[s.slot*2]][s.side ^ state.e[s.slot*2+1]];
+}
+
+/* ---- 2D top-down view: trainer coordinates, verbatim ---- */
+const kl = [1, .1], Al = [.06, 1.74], xl = [1.94, 1.74], vl = [1, .97];
+const TOP_FACES = [
+  ['F',  ['U','L','R'], [vl, Al, xl]],
+  ['Lf', ['U','L','B'], [vl, Al, kl]],
+  ['Rf', ['U','R','B'], [vl, xl, kl]],
+];
+// bottom-face inset: tip the puzzle forward — L upper-left, R upper-right, B at the point
+const Dl = [2.18, .56], Dr = [3.02, .56], Db = [2.60, 1.29];
+const STICKERS_2D = [
+  ...TOP_FACES.flatMap(([f, c, p]) => subdivide(f, c, p)),
+  ...subdivide('D', ['L','R','B'], [Dl, Dr, Db]),
+];
+const ALL_STICKERS = STICKERS_2D; // 36: 12 tips, 12 centers, 12 edges
+
+function netSVG(state, width, opts) {
+  const o = opts || {};
+  const polys = STICKERS_2D.map(s =>
+    `<polygon points="${s.pts.map(p => p[0].toFixed(3) + ',' + p[1].toFixed(3)).join(' ')}" fill="${shade(COLORS[stickerColor(state, s)], SHADE[s.face])}"/>`).join('');
+  const cap = o.thumb ? '' : `<text x="2.60" y="1.50" class="dcap" text-anchor="middle">bottom</text>`;
+  return `<svg viewBox="-0.04 0 3.14 1.86" width="${width}" height="${Math.round(width * 1.86 / 3.14)}" class="${o.cls || 'oonet'}" role="img" aria-label="puzzle state, top view with bottom face">` +
+    `<polygon points="${[kl, Al, xl].map(p => p.join(',')).join(' ')}" fill="none"/>${polys}${cap}</svg>`;
+}
+
+/* ---- 3D view: real tetrahedron, orthographic, orbitable ---- */
+// regular tetrahedron, side 2, centered at the centroid; U up, L front-left, R front-right, B back
+const V3 = (() => {
+  const h = Math.sqrt(8 / 3);            // height for side 2
+  const rb = 2 / Math.sqrt(3);           // base circumradius
+  const U = [0, h, 0], L = [-1, 0, rb / 2], R = [1, 0, rb / 2], B = [0, 0, -rb];
+  const cy = h / 4;
+  for (const p of [U, L, R, B]) p[1] -= cy;
+  return { U, L, R, B };
+})();
+const FACES_3D = [
+  ['F',  ['U','L','R']], ['Lf', ['U','B','L']], ['Rf', ['U','R','B']], ['D',  ['L','B','R']],
+];
+const STICKERS_3D = FACES_3D.flatMap(([f, c]) => subdivide(f, c, c.map(x => V3[x])));
+
+function rotXY(p, yaw, pitch) {
+  const cy = Math.cos(yaw), sy = Math.sin(yaw);
+  const x = p[0] * cy + p[2] * sy, z = -p[0] * sy + p[2] * cy, y = p[1];
+  const cp = Math.cos(pitch), sp = Math.sin(pitch);
+  return [x, y * cp - z * sp, y * sp + z * cp];
+}
+function iso3dSVG(state, width, yaw, pitch, opts) {
+  const o = opts || {};
+  // cull and depth-sort whole faces (a tetrahedron's faces never interleave)
+  const faces = FACES_3D.map(([f, c]) => {
+    const pts = c.map(x => rotXY(V3[x], yaw, pitch));
+    const u = [pts[1][0]-pts[0][0], pts[1][1]-pts[0][1], pts[1][2]-pts[0][2]];
+    const v = [pts[2][0]-pts[0][0], pts[2][1]-pts[0][1], pts[2][2]-pts[0][2]];
+    const n3 = [u[1]*v[2]-u[2]*v[1], u[2]*v[0]-u[0]*v[2], u[0]*v[1]-u[1]*v[0]];
+    const len = Math.hypot(n3[0], n3[1], n3[2]) || 1;
+    return { f, z: (pts[0][2]+pts[1][2]+pts[2][2])/3, nz: n3[2]/len };
+  });
+  const byFace = {}; for (const fc of faces) byFace[fc.f] = fc;
+  const drawn = faces.filter(fc => fc.nz > 0.02).sort((a, b) => a.z - b.z);
+  const polys = [];
+  for (const fc of drawn) {
+    const bright = 0.62 + 0.38 * fc.nz;
+    for (const s of STICKERS_3D) {
+      if (s.face !== fc.f) continue;
+      const pp = s.pts.map(p => { const r = rotXY(p, yaw, pitch); return [r[0], -r[1]]; });
+      polys.push(`<polygon points="${pp.map(p => p[0].toFixed(3) + ',' + p[1].toFixed(3)).join(' ')}" fill="${shade(COLORS[stickerColor(state, s)], bright)}"/>`);
+    }
+  }
+  return `<svg viewBox="-1.5 -1.35 3 2.7" width="${width}" height="${Math.round(width * 0.9)}" class="${o.cls || 'oonet oo3d'}" role="img" aria-label="puzzle state, 3D view">${polys.join('')}</svg>`;
+}
+
+const DEFAULT_VIEW = { yaw: 0.55, pitch: 0.42 }; // shows F and Rf from a little above
+
+const api = { netSVG, iso3dSVG, stickerColor, axialColor, ALL_STICKERS, STICKERS_3D, COLORS, DEFAULT_VIEW };
+if (typeof module !== 'undefined') module.exports = api;
+else window.OORender = api;
+
+})();
+</script>
+<script>
+(function(){const module={exports:{}};
+/* Pyraminx OO — method solver core (no DOM; testable in node).
+   Methods = intermediate target sets (ported from the trainer's pool semantics):
+   - L4E: V at home pair (DL+DR solved), LRB centers solved, any U twist. Phase-1 cap 7.
+   - ML4E (multi-angle): V at the [u]/[u'] pairs (DF+DL or DF+DR). Cap 7.
+   - TL4E-B: home V with the B center twisted. Cap 6.
+   - L5E: >=1 bottom edge solved + LRB centers, any angle (multi-angle built in). Cap 4.
+   - Pseudo V L4E / ML4E: V composed with a client-chosen inverse pre-move (offsets, <=4 moves). Cap 5.
+   A solution counts if executed sequence = reduce(P . A) where P reaches an enabled target
+   within its cap (counted pre-cancellation), A solves the rest with length <= dist + slack
+   ("human-findable" finishes), and <= maxCancel moves vanish at the junction. */
+function makeSolverCore(E, dist) {
+  const MOVES = E.MOVES; // ['U',"U'",'L',"L'",'R',"R'",'B',"B'"]
+  const sigOf = s => (E.idx(s) - (E.idx(s) % 3)) / 3; // no-u signature
+  const NOU = 720 * 64 * 27;
+
+  /* ---------- sequence reduction (cancellation) ---------- */
+  // tokens: ints 0..7; same corner merges mod 3 with cascade
+  function reduceSeq(seq) {
+    const out = [];
+    for (const m of seq) {
+      if (out.length) {
+        const p = out[out.length - 1];
+        if ((p >> 1) === (m >> 1)) {
+          const q = ((p & 1 ? 2 : 1) + (m & 1 ? 2 : 1)) % 3;
+          out.pop();
+          if (q) out.push((m & ~1) | (q === 2 ? 1 : 0));
+          continue;
+        }
+      }
+      out.push(m);
+    }
+    // cascade once more in case a merge exposed a new pair
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (let i = 0; i + 1 < out.length; i++) {
+        if ((out[i] >> 1) === (out[i + 1] >> 1)) {
+          const q = ((out[i] & 1 ? 2 : 1) + (out[i + 1] & 1 ? 2 : 1)) % 3;
+          const rep = q ? [(out[i] & ~1) | (q === 2 ? 1 : 0)] : [];
+          out.splice(i, 2, ...rep);
+          changed = true; break;
+        }
+      }
+    }
+    return out;
+  }
+
+  /* ---------- pools (port of the trainer's Sl) ---------- */
+  function perms(arr) {
+    if (arr.length <= 1) return [arr];
+    const out = [];
+    for (let i = 0; i < arr.length; i++) {
+      const rest = arr.slice(0, i).concat(arr.slice(i + 1));
+      for (const p of perms(rest)) out.push([arr[i]].concat(p));
+    }
+    return out;
+  }
+  function permParity(p) {
+    let par = 0; const seen = new Array(p.length).fill(false);
+    for (let i = 0; i < p.length; i++) {
+      if (seen[i]) continue;
+      let j = i, len = 0;
+      while (!seen[j]) { seen[j] = true; j = p[j]; len++; }
+      par ^= (len - 1) & 1;
+    }
+    return par;
+  }
+  function pool(freeSlots) { // states: listed slots scrambled (even perm, even flips), rest solved, c=[0,0,0]
+    const out = [];
+    for (const asg of perms(freeSlots)) {
+      const full = [0, 1, 2, 3, 4, 5];
+      freeSlots.forEach((slot, i) => { full[slot] = asg[i]; });
+      if (permParity(full) !== 0) continue;
+      const n = freeSlots.length;
+      for (let bits = 0; bits < (1 << n); bits++) {
+        let pc = 0; for (let b = 0; b < n; b++) pc += (bits >> b) & 1;
+        if (pc % 2) continue;
+        const e = [];
+        for (let s = 0; s < 6; s++) {
+          const k = freeSlots.indexOf(s);
+          e.push(full[s], k >= 0 ? (bits >> k) & 1 : 0);
+        }
+        out.push({ e, c: [0, 0, 0], u: 0 });
+      }
+    }
+    return out;
+  }
+  const HOME_FREE = [0, 1, 2, 3];                       // V at DL+DR
+  const ANGLE_FREE = [[0, 1, 2, 4], [0, 1, 2, 5]];      // V at DF+DR / DF+DL
+  const L5E_FREE = [[0, 1, 2, 3, 4], [0, 1, 2, 3, 5], [0, 1, 2, 4, 5]];
+
+  /* ---------- composition (port of the trainer's Lh) + inverse premove ---------- */
+  function compose(A, B) {
+    const o = { e: new Array(12), c: [(A.c[0] + B.c[0]) % 3, (A.c[1] + B.c[1]) % 3, (A.c[2] + B.c[2]) % 3], u: ((A.u || 0) + (B.u || 0)) % 3 };
+    for (let i = 0; i < 6; i++) {
+      const p = A.e[i * 2];
+      o.e[i * 2] = B.e[p * 2];
+      o.e[i * 2 + 1] = B.e[p * 2 + 1] ^ A.e[i * 2 + 1];
+    }
+    return o;
+  }
+  function invPremoveState(tokens) { // tokens: [{f,q}] — state of the INVERSE alg applied to solved
+    const s = E.solved();
+    for (let n = tokens.length - 1; n >= 0; n--) {
+      const reps = (3 - tokens[n].q) % 3;
+      for (let k = 0; k < reps; k++) E.move(s, tokens[n].f, false);
+    }
+    return s;
+  }
+  function parseOffset(str) { // "L", "R U", "L2 R'" — plain moves, <=4
+    const toks = String(str).trim().split(/\s+/).filter(Boolean);
+    if (!toks.length) return null;
+    const out = [];
+    for (const t of toks) {
+      const m = t.match(/^([URLB])(2)?(')?$/);
+      if (!m) return null;
+      const q = (((m[2] ? 2 : 1) * (m[3] ? -1 : 1)) % 3 + 3) % 3;
+      if (q) out.push({ f: m[1], q });
+    }
+    if (!out.length || out.length > 4) return null;
+    return out;
+  }
+
+  /* ---------- method registry ---------- */
+  const METHOD_DEFS = {
+    l4e:    { name: 'L4E',          cap: 7 },
+    ml4e:   { name: 'ML4E',         cap: 7 },
+    tl4eb:  { name: 'TL4E-B',       cap: 6 },
+    l5e:    { name: 'L5E',          cap: 4 },
+    psl4e:  { name: 'Pseudo L4E',   cap: 5 },
+    psml4e: { name: 'Pseudo ML4E',  cap: 5 },
+  };
+  function buildTargets(cfg) {
+    // cfg: { methods:{id:bool}, caps:{id:int}, offsets:[token[]] }
+    const sets = {}; // id -> Set of sigs
+    const add = (id, states) => { const S = sets[id] || (sets[id] = new Set()); for (const st of states) S.add(sigOf(st)); };
+    if (cfg.methods.l4e) add('l4e', pool(HOME_FREE));
+    if (cfg.methods.ml4e) for (const f of ANGLE_FREE) add('ml4e', pool(f));
+    if (cfg.methods.tl4eb) for (const t of [1, 2]) add('tl4eb', pool(HOME_FREE).map(s => ({ e: s.e, c: [0, 0, t], u: 0 })));
+    if (cfg.methods.l5e) for (const f of L5E_FREE) add('l5e', pool(f));
+    if ((cfg.methods.psl4e || cfg.methods.psml4e) && cfg.offsets.length) {
+      const invs = cfg.offsets.map(invPremoveState);
+      if (cfg.methods.psl4e) for (const inv of invs) add('psl4e', pool(HOME_FREE).map(v => compose(v, inv)));
+      if (cfg.methods.psml4e) for (const inv of invs) for (const f of ANGLE_FREE) add('psml4e', pool(f).map(v => compose(v, inv)));
+    }
+    const ids = Object.keys(sets);
+    const capMax = Math.max(0, ...ids.map(id => cfg.caps[id]));
+    return { sets, ids, capMax };
+  }
+  // distance-to-nearest-enabled-target over the no-u space (lower bound for pruning)
+  function buildTv(targets, tick) {
+    const tv = new Int8Array(NOU).fill(-1);
+    let frontier = [];
+    for (const id of targets.ids) for (const sig of targets.sets[id]) if (tv[sig] === -1) { tv[sig] = 0; frontier.push(sig); }
+    let d = 0;
+    const stepAll = (s) => { const out = []; for (let m = 0; m < 8; m++) { const t = E.copy(s); E.applyMoveIdx(t, m); out.push(t); } return out; };
+    while (frontier.length) {
+      const next = [];
+      for (const sg of frontier) {
+        const s = E.unidx(sg * 3);
+        for (let m = 0; m < 8; m++) {
+          const t = E.copy(s); E.applyMoveIdx(t, m);
+          const ts = sigOf(t);
+          if (tv[ts] === -1) { tv[ts] = d + 1; next.push(ts); }
+        }
+      }
+      d++;
+      frontier = next;
+      if (tick) tick(d);
+    }
+    return tv;
+  }
+
+  /* ---------- rotation prefixes ---------- */
+  // For each of the 12 rotations: a token string (<=2 rotation tokens) and the transformed
+  // scramble state such that "[tokens] + plain solution of transformed" solves the original.
+  function buildRotations() {
+    const syms = E.buildSyms();
+    const rotBy = E.makeFrames(syms);
+    const ID = E.symFromFacePerm(E.FACE_ID, false);
+    const frameOf = tokens => { // replicate applyParsed's frame tracking for rotation-only strings
+      let frame = ID;
+      for (const t of tokens) {
+        const phys = frame.corner[t.f];
+        for (let k = 0; k < t.amt; k++) frame = E.composeSym(rotBy[phys], frame);
+      }
+      return frame;
+    };
+    const singles = [];
+    for (const a of ['u', 'l', 'r', 'b']) for (const p of ['', "'"]) singles.push({ str: '[' + a + p + ']', tok: { f: a.toUpperCase(), amt: p ? 2 : 1 } });
+    const cands = [{ str: '', toks: [] }];
+    for (const s1 of singles) cands.push({ str: s1.str, toks: [s1.tok] });
+    for (const s1 of singles) for (const s2 of singles) cands.push({ str: s1.str + ' ' + s2.str, toks: [s1.tok, s2.tok] });
+    const byKey = new Map();
+    for (const c of cands) {
+      const key = JSON.stringify(frameOf(c.toks).fp);
+      if (!byKey.has(key)) byKey.set(key, c);
+    }
+    // empirically associate each PREFIX with the unique state transform that makes
+    // "[prefix] + plain solution of transformed" verify on the original state
+    const probe = E.solved();
+    for (let i = 0; i < 9; i++) E.applyMoveIdx(probe, Math.floor(Math.random() * 8));
+    const probe2 = E.solved();
+    for (let i = 0; i < 8; i++) E.applyMoveIdx(probe2, Math.floor(Math.random() * 8));
+    const out = [];
+    for (const [, c] of byKey) {
+      let chosen = null;
+      for (const sym of syms.rots) {
+        for (const tf of [sym]) {
+          const ms = E.optimalSolution(E.applySym(tf, probe), dist, false);
+          const full = (c.str ? c.str + ' ' : '') + ms;
+          const parsed = E.parseAlg(full);
+          if (parsed && E.eq(E.applyParsed(parsed, probe, syms, rotBy), E.solved())) {
+            const ms2 = E.optimalSolution(E.applySym(tf, probe2), dist, true);
+            if (E.eq(E.applyParsed(E.parseAlg((c.str ? c.str + ' ' : '') + ms2), probe2, syms, rotBy), E.solved())) {
+              chosen = { prefix: c.str, sym: tf };
+            }
+          }
+          if (chosen) break;
+        }
+        if (chosen) break;
+      }
+      if (!chosen) throw new Error('rotation association failed for "' + c.str + '"');
+      out.push(chosen);
+    }
+    if (out.length !== 12) throw new Error('expected 12 rotation prefixes, got ' + out.length);
+    // deduplicate frames (each rotation should map to a distinct prefix); prefer fewest tokens
+    return { rotations: out, syms, rotBy };
+  }
+
+  /* ---------- ergonomics: grip-state DP over renderings ---------- */
+  const ERGO_DEFAULTS = {
+    wrist: 1.0, flickU: 1.0, bCold: 2.0, bSetup: 1.0, wide: 1.2,
+    silentReset: 0.6, altBonus: 0.25, uBusy: 0.3, rotCost: 0.1, grace: 2,
+    displacedTax: 0.12, startDelay: 0.2, bWindow: 2,
+  };
+  // physical token list (ints 0..7) -> { score, tokens (display strings; Rw/Lw substituted when cheaper) }
+  function ergoScore(seq, rotTokens, w) {
+    w = Object.assign({}, ERGO_DEFAULTS, w || {});
+    const { syms, rotBy } = ergoScore._rot || (ergoScore._rot = (() => { const s2 = E.buildSyms(); return { syms: s2, rotBy: E.makeFrames(s2) }; })());
+    const ID = E.symFromFacePerm(E.FACE_ID, false);
+    const frames = [ID];
+    const frameKey = f => JSON.stringify(f.fp);
+    const frameIdx = new Map([[frameKey(ID), 0]]);
+    const ensureFrame = f => { const k = frameKey(f); if (!frameIdx.has(k)) { frameIdx.set(k, frames.length); frames.push(f); } return frameIdx.get(k); };
+    // DP state: (frame, dialL, dialR, sinceL, sinceR, lastHand)
+    // dial: thumb position relative to home (-1 bottom, 0 front, +1 top by that hand's CW);
+    // since: moves since that hand last turned its wrist (capped, for the B setup window);
+    const CAP = 5;
+    const startStates = new Map();
+    for (const dl of [-1, 0, 1]) for (const dr of [-1, 0, 1]) {
+      const c0 = (dl !== 0 ? w.startDelay : 0) + (dr !== 0 ? w.startDelay : 0);
+      startStates.set('0|' + dl + '|' + dr + '|' + CAP + '|' + CAP + '|n', { cost: c0, toks: [] });
+    }
+    let layer = startStates;
+    for (let i = 0; i < seq.length; i++) {
+      const next = new Map();
+      const physTok = seq[i];
+      const physLetter = MOVES[physTok][0], prime = MOVES[physTok].length > 1;
+      for (const [k, st] of layer) {
+        const [fI, dl0, dr0, sl0, sr0, lh0] = k.split('|');
+        const frame = frames[+fI];
+        const written = Object.keys(frame.corner).find(x => frame.corner[x] === physLetter);
+        const renders = [{ kind: 'base', letter: written }];
+        if (written === 'L' || written === 'R') renders.push({ kind: 'wide', letter: written === 'L' ? 'R' : 'L' });
+        for (const r of renders) {
+          let cost = 0, dl = +dl0, dr = +dr0, sl = +sl0, sr = +sr0;
+          let hand = null, tok, nf = +fI;
+          const L = r.letter;
+          if (r.kind === 'wide') {
+            tok = L + 'w' + (prime ? "'" : '');
+            // wide frame change per engine: Xw applies move WIDE[X][0] + rotation about WIDE[X][1]
+            const axis = L === 'R' ? 'L' : 'R';
+            const physAxis = frame.corner[axis];
+            let f2 = frame;
+            const steps = prime ? 1 : 2;
+            for (let q = 0; q < steps; q++) f2 = E.composeSym(rotBy[physAxis], f2);
+            nf = ensureFrame(f2);
+          } else tok = L + (prime ? "'" : '');
+          if (L === 'L' || L === 'R') {
+            // wrist move; the executing hand is the letter's hand (a wide is the SAME wrist
+            // motion as its underlying move done by the other hand's letter -- Rw acts like an L)
+            hand = (r.kind === 'wide') ? (L === 'R' ? 'right' : 'left') : (L === 'L' ? 'left' : 'right');
+            cost += r.kind === 'wide' ? w.wide : w.wrist;
+            const dir = prime ? -1 : 1;
+            // dial sense: right hand R = +1; left hand L' = +1 (thumb toward top), mirrored
+            const delta = hand === 'right' ? dir : -dir;
+            let cur = hand === 'left' ? dl : dr;
+            let nd = cur + delta;
+            if (Math.abs(nd) > 1) { cost += w.silentReset; nd = delta; }
+            if (hand === 'left') { dl = nd; sl = 0; sr = Math.min(CAP, sr + 1); }
+            else { dr = nd; sr = 0; sl = Math.min(CAP, sl + 1); }
+          } else if (L === 'U') {
+            const cl = dl !== 0 ? w.uBusy : 0, cr = dr !== 0 ? w.uBusy : 0;
+            hand = cl <= cr ? 'left' : 'right';
+            cost += w.flickU + Math.min(cl, cr);
+            sl = Math.min(CAP, sl + 1); sr = Math.min(CAP, sr + 1);
+          } else { // B: cheap only with a thumb up top AND recently placed there, or out of inspection
+            const setup = (dr === 1 && sr <= w.bWindow) || (dl === 1 && sl <= w.bWindow) || i < w.grace;
+            cost += setup ? w.bSetup : w.bCold;
+            hand = (dr === 1 && sr <= w.bWindow) ? 'right' : (dl === 1 && sl <= w.bWindow) ? 'left' : 'right';
+            sl = Math.min(CAP, sl + 1); sr = Math.min(CAP, sr + 1);
+          }
+          if (lh0 !== 'n' && lh0 !== hand) cost -= w.altBonus;       // hand alternation flows
+          cost += (dl !== 0 ? w.displacedTax : 0) + (dr !== 0 ? w.displacedTax : 0); // time away from home grip
+          const nk = nf + '|' + dl + '|' + dr + '|' + sl + '|' + sr + '|' + hand;
+          const tot = st.cost + cost;
+          const prev = next.get(nk);
+          if (!prev || prev.cost > tot) next.set(nk, { cost: tot, toks: st.toks.concat(tok) });
+        }
+      }
+      layer = next;
+    }
+    let best = null;
+    for (const [, st] of layer) if (!best || st.cost < best.cost) best = st;
+    const rotN = rotTokens ? rotTokens.split(/\s+/).filter(Boolean).length : 0;
+    return { score: +(best.cost + rotN * w.rotCost).toFixed(2), tokens: best.toks };
+  }
+
+  /* ---------- the search ---------- */
+  // search(scrambleState, opts, hooks) -> { byLength: {L: [results...]}, dopt, truncated }
+  // opts: { methods, caps, offsets, slack, maxCancel, lengths:[ints], weights, budget }
+  function search(scr, opts, hooks) {
+    const cfg = {
+      methods: opts.methods, caps: Object.assign({}, ...Object.keys(METHOD_DEFS).map(id => ({ [id]: METHOD_DEFS[id].cap })), opts.caps || {}),
+      offsets: (opts.offsets || []),
+    };
+    const targets = buildTargets(cfg);
+    const tv = opts.tv; // caller supplies (cached) or null
+    const rot = opts.rotations; // from buildRotations()
+    const slack = opts.slack ?? 0;
+    const maxCancel = opts.maxCancel ?? 2;
+    const budget = opts.budget || 60000;
+    const dopt = dist[E.idx(scr)];
+    const lengths = opts.lengths;
+    const Lmax = Math.max(...lengths);
+    const found = new Map(); // key rotPrefix+'|'+executed string -> result
+    let work = 0, truncated = false;
+
+    for (const r of rot.rotations) {
+      const s0 = E.applySym(r.sym, scr);
+      // phase 1: DFS enumerating reduced prefixes
+      const junctions = new Map(); // tIdx -> { state, paths: [{seq, hits:[{id,len}]}] }
+      const dfs1 = (s, seq, lastCorner) => {
+        if (++work > budget) { truncated = true; return; }
+        const sg = sigOf(s);
+        // membership hits at this node
+        const hits = [];
+        for (const id of targets.ids) if (seq.length <= cfg.caps[id] && targets.sets[id].has(sg)) hits.push(id);
+        if (hits.length) {
+          const ti = E.idx(s);
+          let j = junctions.get(ti);
+          if (!j) { j = { state: E.copy(s), paths: [] }; junctions.set(ti, j); }
+          j.paths.push({ seq: seq.slice(), hits });
+        }
+        if (seq.length >= targets.capMax) return;
+        // prune: total budget and target reachability
+        const df = dist[E.idx(s)];
+        if (seq.length + df > Lmax + maxCancel) {
+          // still might reach a target then come back longer? no: executed >= seq.length + dist - cancel
+          // continue only if a target could be hit deeper AND total can still work via slack on A? covered: A <= dist(t)+slack
+          // allow slack margin:
+          if (seq.length + df > Lmax + maxCancel + slack) return;
+        }
+        if (tv && seq.length + tv[sg] > targets.capMax) return;
+        for (let m = 0; m < 8; m++) {
+          if ((m >> 1) === lastCorner) continue;
+          const t = E.copy(s); E.applyMoveIdx(t, m);
+          seq.push(m);
+          dfs1(t, seq, m >> 1);
+          seq.pop();
+          if (truncated) return;
+        }
+      };
+      dfs1(s0, [], -1);
+      if (truncated) break;
+      // phase 2 per junction
+      for (const [ti, j] of junctions) {
+        const dT = dist[ti];
+        const minP = Math.min(...j.paths.map(p => p.seq.length));
+        const maxA = Math.min(dT + slack, Lmax + maxCancel - minP);
+        if (maxA < dT) continue;
+        const finals = []; // {seq}
+        const dfs2 = (s, seq) => {
+          if (++work > budget) { truncated = true; return; }
+          const d = dist[E.idx(s)];
+          if (d === 0 && seq.length >= dT) { finals.push(seq.slice()); }
+          if (seq.length >= maxA) return;
+          const last = seq.length ? seq[seq.length - 1] >> 1 : -1;
+          for (let m = 0; m < 8; m++) {
+            if ((m >> 1) === last) continue;
+            const t = E.copy(s); E.applyMoveIdx(t, m);
+            if (dist[E.idx(t)] > maxA - seq.length - 1) continue;
+            seq.push(m);
+            dfs2(t, seq);
+            seq.pop();
+            if (truncated) return;
+          }
+        };
+        dfs2(j.state, []);
+        if (truncated) break;
+        for (const A of finals) for (const p of j.paths) {
+          const exec = reduceSeq(p.seq.concat(A));
+          const cancel = p.seq.length + A.length - exec.length;
+          if (cancel > maxCancel) continue;
+          if (!lengths.includes(exec.length)) continue;
+          const kk = r.prefix + '|' + exec.join(',');
+          let item = found.get(kk);
+          if (!item) {
+            item = { prefix: r.prefix, exec, length: exec.length, methods: {} };
+            found.set(kk, item);
+          }
+          for (const id of p.hits) {
+            const cur = item.methods[id];
+            if (!cur || p.seq.length < cur.v) item.methods[id] = { v: p.seq.length, fin: A.length, cancel };
+          }
+        }
+      }
+      if (truncated) break;
+    }
+    // suppress L5E badge when a more specific V badge exists
+    for (const item of found.values())
+      if (item.methods.l5e && (item.methods.l4e || item.methods.ml4e || item.methods.tl4eb)) delete item.methods.l5e;
+    // score + bucket
+    const byLength = {};
+    for (const item of found.values()) {
+      const sc = ergoScore(item.exec, item.prefix, opts.weights);
+      item.score = sc.score;
+      item.display = (item.prefix ? item.prefix + ' ' : '') + sc.tokens.join(' ');
+      (byLength[item.length] = byLength[item.length] || []).push(item);
+    }
+    for (const L of Object.keys(byLength)) byLength[L].sort((a, b) => a.score - b.score || a.display.localeCompare(b.display));
+    return { byLength, dopt, truncated, work };
+  }
+
+  return { reduceSeq, pool, compose, invPremoveState, parseOffset, buildTargets, buildTv, buildRotations, ergoScore, search, METHOD_DEFS, ERGO_DEFAULTS, sigOf };
+}
+if (typeof module !== 'undefined') module.exports = { makeSolverCore };
+else window.OOSolverCore = { makeSolverCore };
+
+window.OOSolverCore=module.exports;})();
+</script>
+<script>
+/* Pyraminx OO — Solver tab app. Expects OOEngine, OORender, OOSolverCore. */
+(function () {
+const E = window.OOEngine, R = window.OORender, CORE = window.OOSolverCore;
+const $ = (q, el) => (el || document).querySelector(q);
+const h = (tag, attrs, ...kids) => {
+  const el = document.createElement(tag);
+  for (const k in (attrs || {})) {
+    if (k === 'class') el.className = attrs[k];
+    else if (k === 'html') el.innerHTML = attrs[k];
+    else if (k.startsWith('on')) el.addEventListener(k.slice(2), attrs[k]);
+    else if (attrs[k] !== null && attrs[k] !== undefined) el.setAttribute(k, attrs[k]);
+  }
+  for (const kid of kids.flat()) if (kid !== null && kid !== undefined && kid !== false)
+    el.appendChild(typeof kid === 'string' ? document.createTextNode(kid) : kid);
+  return el;
+};
+function toast(msg) {
+  const t = h('div', { class: 'toast' }, msg);
+  document.body.appendChild(t);
+  setTimeout(() => t.classList.add('show'), 16);
+  setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 350); }, 3500);
+}
+const tick = () => new Promise(r => setTimeout(r, 0));
+
+/* ---- tables (shares the Atlas page's IndexedDB cache) ---- */
+let dist = null, C = null, rotations = null, syms = null, rotBy = null;
+async function idb(mode, payload) {
+  if (!('indexedDB' in window)) return null;
+  try {
+    const db = await new Promise((res, rej) => { const r = indexedDB.open('pyraminx-oo', 1);
+      r.onupgradeneeded = () => r.result.createObjectStore('t');
+      r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+    const out = await new Promise((res, rej) => {
+      const tx = db.transaction('t', mode === 'get' ? 'readonly' : 'readwrite').objectStore('t');
+      const rq = mode === 'get' ? tx.get('oo-tables-v1') : tx.put(payload, 'oo-tables-v1');
+      rq.onsuccess = () => res(rq.result); rq.onerror = () => rej(rq.error); });
+    db.close();
+    return out || null;
+  } catch (e) { return null; }
+}
+async function boot() {
+  const label = $('#boot-label'), bar = $('#boot-bar');
+  const rep = (t, n, tot) => { label.textContent = t; bar.style.width = Math.round(100 * n / tot) + '%'; };
+  const cached = await idb('get');
+  if (cached && cached.dist) { dist = new Int8Array(cached.dist); rep('Loading cached tables\u2026', 1, 1); }
+  else {
+    const d = new Int8Array(E.NSLOTS).fill(-1);
+    let frontier = new Uint32Array([E.idx(E.solved())]);
+    d[frontier[0]] = 0;
+    let dd = 0, seen = 1;
+    while (frontier.length) {
+      const next = [];
+      for (let fi = 0; fi < frontier.length; fi++) {
+        const s = E.unidx(frontier[fi]);
+        for (let m = 0; m < 8; m++) {
+          const t2 = E.copy(s); E.applyMoveIdx(t2, m);
+          const ix = E.idx(t2);
+          if (d[ix] === -1) { d[ix] = dd + 1; next.push(ix); }
+        }
+        if ((fi & 8191) === 8191) { rep('Mapping all 933,120 positions\u2026', seen + next.length, 933120); await tick(); }
+      }
+      dd++; seen += next.length; frontier = Uint32Array.from(next);
+      rep('Mapping all 933,120 positions\u2026', seen, 933120); await tick();
+    }
+    dist = d;
+    idb('put', { dist: dist.buffer }); // Atlas page upgrades this with class tables on next visit
+  }
+  rep('Preparing solver\u2026', 0, 1);
+  await tick();
+  C = CORE.makeSolverCore(E, dist);
+  syms = E.buildSyms(); rotBy = E.makeFrames(syms);
+  rotations = C.buildRotations();
+  rep('Ready', 1, 1);
+  $('#boot-status').classList.add('gone');
+  render();
+}
+
+/* ---- state ---- */
+const UI = {
+  scramble: '',
+  parsed: null, state: null, dopt: null,
+  methods: { l4e: true, ml4e: true, l5e: true, tl4eb: true, psl4e: false, psml4e: false },
+  caps: { l4e: 7, ml4e: 7, tl4eb: 6, l5e: 4, psl4e: 5, psml4e: 5 },
+  offsetsText: 'L, R',
+  slack: 0, maxCancel: 2,
+  weights: {},
+  lengths: new Set(),       // requested total lengths
+  results: {},              // L -> items (raw from core)
+  searching: false, truncated: false,
+  optionsOpen: false,
+};
+const METHOD_LABEL = { l4e: 'L4E', ml4e: 'ML4E', l5e: 'L5E', tl4eb: 'TL4E-B', psl4e: 'Pseudo L4E', psml4e: 'Pseudo ML4E' };
+
+function parsedOffsets() {
+  if (!UI.methods.psl4e && !UI.methods.psml4e) return [];
+  const parts = UI.offsetsText.split(',').map(x => x.trim()).filter(Boolean);
+  const out = [];
+  for (const p of parts) {
+    const o = C.parseOffset(p);
+    if (!o) { toast('Couldn\u2019t read offset \u201c' + p + '\u201d \u2014 plain moves, up to 4 per offset (e.g. L or R U).'); return null; }
+    out.push(o);
+  }
+  if (!out.length) { toast('Pseudo methods need at least one offset.'); return null; }
+  return out;
+}
+
+async function runSearch(newLengths) {
+  if (!UI.state) return;
+  const offsets = parsedOffsets();
+  if (offsets === null) return;
+  UI.searching = true; render();
+  await tick(); await tick();
+  const lengths = [...newLengths].filter(L => L >= UI.dopt && L <= 11);
+  const t0 = Date.now();
+  try {
+    const res = C.search(UI.state, {
+      methods: UI.methods, caps: UI.caps, offsets,
+      slack: UI.slack, maxCancel: UI.maxCancel,
+      lengths, rotations, tv: null,
+      budget: Math.max(...lengths) >= 10 ? 2.5e7 : 8e6,
+      weights: UI.weights,
+    });
+    for (const L of lengths) UI.results[L] = res.byLength[L] || [];
+    UI.truncated = res.truncated;
+    for (const L of lengths) UI.lengths.add(L);
+  } catch (err) { toast('Search failed: ' + err.message); }
+  UI.searching = false;
+  UI.lastMs = Date.now() - t0;
+  render();
+}
+function rescoreAll() { // ergonomics changed: re-rank cached results, no re-search
+  for (const L of Object.keys(UI.results)) {
+    for (const it of UI.results[L]) {
+      const sc = C.ergoScore(it.exec, it.prefix, UI.weights);
+      it.score = sc.score;
+      it.display = (it.prefix ? it.prefix + ' ' : '') + sc.tokens.join(' ');
+    }
+    UI.results[L].sort((a, b) => a.score - b.score || a.display.localeCompare(b.display));
+  }
+  render();
+}
+function fullResearch() { // structural option changed
+  const ls = new Set(UI.lengths);
+  UI.results = {}; UI.lengths = new Set();
+  if (ls.size) runSearch(ls);
+}
+
+function onSolve() {
+  const txt = $('#scr-in').value.trim();
+  if (!txt) return;
+  const parsed = E.parseAlg(txt);
+  if (!parsed) { toast('Couldn\u2019t read that scramble \u2014 use standard notation (tip moves are ignored).'); return; }
+  const st = E.applyParsed(parsed, E.solved(), syms, rotBy);
+  UI.scramble = txt; UI.parsed = parsed; UI.state = st;
+  UI.dopt = dist[E.idx(st)];
+  UI.results = {}; UI.lengths = new Set(); UI.truncated = false;
+  if (UI.dopt === 0) { render(); return; }
+  const init = new Set([UI.dopt]);
+  if (UI.dopt + 1 <= 11) init.add(UI.dopt + 1);
+  runSearch(init);
+}
+
+/* ---- views ---- */
+function copyBtn(text) {
+  return h('button', { class: 'copy', title: 'Copy', onclick: () => {
+    (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject())
+      .then(() => toast('Copied'))
+      .catch(() => { const ta = h('textarea', null, text); document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); toast('Copied'); });
+  } }, '\u2398');
+}
+function slider(label, hint, key, min, max, step) {
+  const W = Object.assign({}, C.ERGO_DEFAULTS, UI.weights);
+  const val = h('span', { class: 'sliderval' }, String(W[key]));
+  return h('div', { class: 'sliderblock' },
+    h('label', { class: 'sliderrow' },
+      h('span', { class: 'sliderlabel' }, label),
+      h('input', { type: 'range', min, max, step, value: W[key], oninput: ev => {
+        UI.weights[key] = +ev.target.value; val.textContent = ev.target.value;
+        clearTimeout(slider._t); slider._t = setTimeout(rescoreAll, 250);
+      } }), val),
+    h('div', { class: 'sliderhint' }, hint));
+}
+function render() {
+  const root = $('#app'); root.innerHTML = '';
+  root.appendChild(h('header', { class: 'topbar' },
+    h('a', { href: './', class: 'wordmark' }, h('span', { class: 'tri', 'aria-hidden': 'true' }), 'PYRAMINX ', h('b', null, 'OO')),
+    h('nav', { class: 'navtabs' },
+      h('a', { href: './', class: 'navlink' }, 'Home'),
+      h('a', { href: 'solver.html', class: 'navlink on' }, 'Solver'),
+      h('a', { href: './#/about', class: 'navlink' }, 'How it works'))));
+  const main = h('main', { class: 'page' }); root.appendChild(main);
+
+  main.appendChild(h('section', { class: 'homeintro' },
+    h('h1', null, 'Method solver'),
+    h('p', { class: 'lede' }, 'Paste a scramble to get human-findable solutions \u2014 V into L4E, ML4E, L5E and more \u2014 ranked by how comfortable they are to turn. Every solution is machine-verified.')));
+
+  /* scramble row */
+  main.appendChild(h('div', { class: 'searchrow' },
+    h('input', { id: 'scr-in', class: 'searchin mono', value: UI.scramble,
+      placeholder: "Scramble \u2014 e.g.  R U' B L' U R' B'  (tips ignored)",
+      onkeydown: ev => { if (ev.key === 'Enter') onSolve(); } }),
+    h('button', { class: 'primary', onclick: onSolve }, 'Solve')));
+
+  /* method toggles */
+  const togRow = h('div', { class: 'methodrow' });
+  for (const id of Object.keys(METHOD_LABEL)) {
+    togRow.appendChild(h('button', { class: 'methodchip' + (UI.methods[id] ? ' on' : ''), onclick: () => {
+      UI.methods[id] = !UI.methods[id];
+      fullResearch();
+      render();
+    } }, METHOD_LABEL[id]));
+  }
+  main.appendChild(togRow);
+  if (UI.methods.psl4e || UI.methods.psml4e) {
+    main.appendChild(h('div', { class: 'offsetrow' },
+      h('span', { class: 'scrlabel' }, 'pseudo offsets'),
+      h('input', { class: 'searchin mono sm', value: UI.offsetsText, 'aria-label': 'pseudo offsets',
+        placeholder: 'comma separated, up to 4 moves each \u2014 e.g.  L, R, R U',
+        onchange: ev => { UI.offsetsText = ev.target.value; fullResearch(); } })));
+  }
+
+  /* options drawer */
+  const drawer = h('section', { class: 'card optcard' },
+    h('button', { class: 'opthead', onclick: () => { UI.optionsOpen = !UI.optionsOpen; render(); } },
+      (UI.optionsOpen ? '\u25be' : '\u25b8') + ' Options \u2014 filters & ergonomics'));
+  if (UI.optionsOpen) {
+    const W = Object.assign({}, C.ERGO_DEFAULTS, UI.weights);
+    const capIn = (id) => h('label', { class: 'capin' }, METHOD_LABEL[id],
+      h('input', { type: 'number', min: '0', max: '9', value: UI.caps[id], onchange: ev => { UI.caps[id] = +ev.target.value; fullResearch(); } }));
+    drawer.appendChild(h('div', { class: 'optgrid' },
+      h('div', { class: 'optcol' },
+        h('h4', null, 'First-step length caps (before cancellation)'),
+        h('div', { class: 'caprow' }, capIn('l4e'), capIn('ml4e'), capIn('tl4eb'), capIn('l5e'), capIn('psl4e'), capIn('psml4e')),
+        h('h4', null, 'Finish & cancellation'),
+        h('label', { class: 'sliderrow' }, h('span', { class: 'sliderlabel' }, 'finish slack (moves above the case optimum)'),
+          h('select', { onchange: ev => { UI.slack = +ev.target.value; fullResearch(); } },
+            h('option', { value: '0', selected: UI.slack === 0 ? '' : null }, 'optimal only'),
+            h('option', { value: '1', selected: UI.slack === 1 ? '' : null }, 'optimal +1'))),
+        h('label', { class: 'sliderrow' }, h('span', { class: 'sliderlabel' }, 'max canceled moves at the junction'),
+          h('input', { type: 'range', min: '0', max: '4', step: '1', value: UI.maxCancel,
+            onchange: ev => { UI.maxCancel = +ev.target.value; fullResearch(); } }),
+          h('span', { class: 'sliderval' }, String(UI.maxCancel)))),
+      h('div', { class: 'optcol' },
+        h('h4', null, 'Ergonomics \u2014 re-ranks instantly'),
+        h('p', { class: 'opthint' }, 'Each move adds a small cost and the score is the total \u2014 lower means nicer to turn. Raise a slider if a situation bothers you more than the default.'),
+        slider('cold B', 'a B with no setup \u2014 nothing has positioned your index for it, like the B in L U \u2026 B', 'bCold', 1, 3, 0.1),
+        slider('set-up B', 'a B just after R or L\u2032 raises a thumb (the B in R B R\u2032), or within the first two moves of the solve', 'bSetup', 0.5, 2, 0.05),
+        slider('B setup fades after', 'how many moves a raised thumb stays ready for B before it counts as cold again', 'bWindow', 0, 4, 1),
+        slider('wide move', 'an Rw or Lw, relative to a normal turn (1.0 = no penalty)', 'wide', 0.5, 3, 0.05),
+        slider('hidden regrip', 'repeating a wrist direction, like the second L\u2032 in L\u2032 R L\u2032 \u2014 the hand has to reset before it can turn again', 'silentReset', 0, 1.5, 0.05),
+        slider('away-from-home tax', 'a small cost for every move a thumb spends off home grip \u2014 favors quick returns like R U R\u2032 and R\u2032 L R L\u2032', 'displacedTax', 0, 0.4, 0.02),
+        slider('hand alternation bonus', 'a discount each time the turning hand switches \u2014 bouncing between R and L flows', 'altBonus', 0, 0.5, 0.05),
+        slider('alternate starting grip', 'starting with a thumb on bottom or top instead of home \u2014 unlocks openers like R U R for a small delay', 'startDelay', 0, 1, 0.05),
+        slider('U with no free index', 'a U when both hands are busy and neither index is parked at the top', 'uBusy', 0, 1, 0.05),
+        slider('starting rotation', 'a [u] or [l\u2032] applied during inspection, before the first move', 'rotCost', 0, 0.5, 0.05),
+        h('button', { class: 'ghost sm', onclick: () => { UI.weights = {}; rescoreAll(); } }, 'reset to defaults'))));
+  }
+  main.appendChild(drawer);
+
+  /* scramble preview + depth chips */
+  if (UI.state) {
+    main.appendChild(h('section', { class: 'pairrow single' },
+      h('div', { class: 'sidepanel' },
+        h('div', { class: 'sidehead' },
+          h('span', { class: 'sidelabel' }, 'scramble'),
+          h('span', { class: 'depthchip' }, UI.dopt === 0 ? 'already solved' : 'optimal: ' + UI.dopt + ' moves'),
+          h('a', { class: 'ordinal', href: './#/c/' + E.idx(UI.state) }, 'open this position \u2192')),
+        h('div', { class: 'netwrap', html: R.netSVG(UI.state, 300) }))));
+    if (UI.dopt > 0) {
+      const chips = h('div', { class: 'depthchips' });
+      for (let L = UI.dopt; L <= 11; L++) {
+        const have = UI.lengths.has(L);
+        const gated = L > 9 && L > UI.dopt + 1;
+        chips.appendChild(h('button', {
+          class: 'depthsel' + (have ? ' on' : '') + (gated && !have ? ' gated' : ''),
+          onclick: () => { if (!have) runSearch(new Set([L])); },
+          title: gated && !have ? 'deep search \u2014 click to run' : null,
+        }, h('b', null, String(L)), h('span', null, have ? (UI.results[L] || []).length + ' found' : (gated ? 'search\u2026' : 'search'))));
+      }
+      main.appendChild(chips);
+    }
+  }
+
+  if (UI.searching) main.appendChild(h('p', { class: 'empty' }, 'Searching\u2026'));
+  if (UI.truncated) main.appendChild(h('p', { class: 'warnline' }, 'This depth hit the search budget, so the list may be incomplete \u2014 tighten the caps or try a shorter length for an exhaustive search.'));
+
+  /* results */
+  const lens = [...UI.lengths].sort((a, b) => a - b);
+  for (const L of lens) {
+    const items = UI.results[L] || [];
+    const sec = h('section', { class: 'card solcard' },
+      h('h3', null, L + ' moves' + (L === UI.dopt ? ' \u2014 optimal' : L === UI.dopt + 1 ? ' \u2014 optimal +1' : ''),
+        h('span', { class: 'counttag' }, items.length + (items.length === 1 ? ' solution' : ' solutions'))));
+    if (!items.length) sec.appendChild(h('p', { class: 'empty' }, 'No method-findable solutions at this length.'));
+    items.slice(0, UI['showAll' + L] ? items.length : 10).forEach(it => {
+      const badges = Object.entries(it.methods).map(([id, m]) =>
+        h('span', { class: 'mbadge', title: 'first step ' + m.v + ' \u2192 finish ' + m.fin + (m.cancel ? ', ' + m.cancel + ' canceled' : '') },
+          METHOD_LABEL[id] + ' ' + m.v + '+' + m.fin + (m.cancel ? '\u2212' + m.cancel : '')));
+      sec.appendChild(h('div', { class: 'solrow solverrow' },
+        h('div', { class: 'solcell' }, h('code', { class: 'mono sol' }, it.display), copyBtn(it.display)),
+        h('div', { class: 'badgecell' }, badges),
+        h('div', { class: 'solmeta scorechip', title: 'ergonomic cost \u2014 lower is nicer' }, String(it.score))));
+    });
+    if (items.length > 10 && !UI['showAll' + L])
+      sec.appendChild(h('button', { class: 'ghost sm', onclick: () => { UI['showAll' + L] = true; render(); } }, 'show all ' + items.length));
+    main.appendChild(sec);
+  }
+  if (UI.state && UI.dopt === 0) main.appendChild(h('p', { class: 'empty' }, 'Nothing to solve \u2014 that scramble leaves the puzzle solved.'));
+  if (!UI.state) main.appendChild(h('p', { class: 'empty hintline' }, 'The badge on each solution reads like \u201cL4E 3+6\u22122\u201d: a 3-move V, a 6-move finish, 2 moves canceled at the junction.'));
+}
+window.OOSolver = { get UI() { return UI; }, runSearch, onSolve, get C() { return C; } };
+window.addEventListener('DOMContentLoaded', boot);
+})();
+
+</script>
+</body>
+</html>
