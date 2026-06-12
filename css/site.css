@@ -158,7 +158,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{
 .toast{position:fixed;left:50%;bottom:28px;transform:translate(-50%,16px);background:var(--panel2);border:1px solid var(--line2);color:var(--txt);padding:.7em 1.2em;border-radius:11px;opacity:0;transition:all .3s ease;z-index:50;max-width:90vw}
 .toast.show{opacity:1;transform:translate(-50%,0)}
 #boot-status{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;background:var(--ink);z-index:40;transition:opacity .4s ease}
-#boot-status.gone{opacity:0;pointer-events:none}
+#boot-status.gone{opacity:0;pointer-events:none;visibility:hidden}
 #boot-status .bigtri{width:74px;height:64px;background:conic-gradient(from 0deg at 50% 62%, var(--green) 0 90deg, var(--blue) 90deg 180deg, var(--red) 180deg 270deg, var(--yellow) 270deg 360deg);clip-path:polygon(50% 0,100% 100%,0 100%);animation:pulse 1.6s ease-in-out infinite}
 @keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.07)}}
 @media(prefers-reduced-motion:reduce){#boot-status .bigtri{animation:none}.bar{transition:none}}
