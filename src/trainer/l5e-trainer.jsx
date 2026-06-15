@@ -803,21 +803,27 @@ export default function L5ETrainer() {
     });
   }, [current, phase, allOptimalVs]);
 
-  // Recog (Feature 1): pseudo L4E case recognition. Take a normal home-bar L4E
-  // case scramble and prepend the inverse offset, so the solution becomes
-  // [case alg] + [offset] (a post-move offset). The user identifies the case.
+  // Recog (Feature 1): pseudo L4E case recognition. Build the pseudo case STATE
+  // (a home-bar L4E case whose solution is [case alg] + [offset], a post-move
+  // offset), then generate a fresh MASKED scramble to that state so the
+  // scramble never telegraphs which pseudo offset is in play.
   const makeRecog = useCallback((psoStr) => {
     const offs = parsePseudoOffsets(psoStr);
     const pool = poolsRef.current && poolsRef.current["l4e-DF"];
     if (!offs || !pool || !pool.states.length) return null;
-    const pres = pool.states[Math.floor(Math.random() * pool.states.length)];
-    const base = makeScramble("l4e", pres.caseKey, pool.classes.get(pres.caseKey));
-    if (!base || !base.scramble) return null;
-    const off = offs[Math.floor(Math.random() * offs.length)];
-    const invO = invertOffsetTokens(off);
-    const scramble = (invO ? invO + " " : "") + base.scramble;
-    return { kind: "recog", scramble, render: applyMoveString(scramble, solvedState()),
-      uTwist: uTwistOf(scramble), caseKey: base.caseKey, offsetStr: off.str };
+    for (let attempt = 0; attempt < 25; attempt++) {
+      const pres = pool.states[Math.floor(Math.random() * pool.states.length)];
+      const base = makeScramble("l4e", pres.caseKey, pool.classes.get(pres.caseKey));
+      if (!base || !base.scramble) continue;
+      const off = offs[Math.floor(Math.random() * offs.length)];
+      const invO = invertOffsetTokens(off);
+      // pseudo state: [inverse offset][case scramble] applied to solved
+      const render = applyMoveString((invO ? invO + " " : "") + base.scramble, solvedState());
+      const scramble = maskedScramble(render, distRef.current);  // masked: hides the offset
+      if (!scramble) continue;
+      return { kind: "recog", scramble, render, uTwist: uTwistOf(scramble), caseKey: base.caseKey, offsetStr: off.str };
+    }
+    return null;
   }, [makeScramble]);
 
   const committedPso = useRef("L, R'");
@@ -1248,7 +1254,7 @@ export default function L5ETrainer() {
               </>
             ) : (
               <>
-                <div className="hint" style={{ marginTop: 14 }}>Which L4E case is it? (pseudo offset {current.offsetStr})</div>
+                <div className="hint" style={{ marginTop: 14 }}>Which pseudo L4E case is it?</div>
                 <button className="restart" style={{ marginTop: 8 }} onClick={revealRecog}>Reveal case</button>
               </>
             )}
