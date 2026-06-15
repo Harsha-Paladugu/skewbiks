@@ -102,7 +102,7 @@ function unindex(ix) {
   for (let k = 0; k < 6; k++) { e[k * 2] = p[k]; e[k * 2 + 1] = (flips >> k) & 1; }
   return { e, c: [Math.floor(cval / 9), Math.floor(cval / 3) % 3, cval % 3] };
 }
-// V-First goal test: >=2 of the bottom edges (DF/DL/DR) placed and centers solved
+// Solution Trainer goal (the "V"): >=2 of the bottom edges (DF/DL/DR) placed and centers solved
 const isVState = (s) =>
   !s.c[0] && !s.c[1] && !s.c[2] &&
   [3, 4, 5].reduce((g, dd) => g + (s.e[dd * 2] === dd && s.e[dd * 2 + 1] === 0 ? 1 : 0), 0) >= 2;
@@ -126,6 +126,13 @@ function buildVDist(dist) {
     frontier = next; d++;
   }
   return vdist;
+}
+// group reachable state indices by their V-distance (1..7), so any target
+// length can be sampled directly (random scrambles can't reliably hit len 7)
+function buildVBuckets(dist, vdist) {
+  const buckets = Array.from({ length: 8 }, () => []);
+  for (let i = 0; i < SPACE; i++) { if (dist[i] < 0) continue; buckets[vdist[i]].push(i); }
+  return buckets;
 }
 
 // randomized optimal solution: state -> solved, ties broken at random
@@ -561,13 +568,14 @@ function BarTriangle({ bar, onPick }) {
 export default function L5ETrainer() {
   const distRef = useRef(null);
   const vdistRef = useRef(null);
+  const vbucketsRef = useRef(null);
   const poolsRef = useRef(null);
   const [ready, setReady] = useState(false);
 
   const [bar, setBar] = useState("DL");
   const [selected, setSelected] = useState(() => new Set(L5E_IDS));
   const [mode, setMode] = useState("drill");
-  const [vlenSel, setVlenSel] = useState(() => new Set([3, 4, 5, 6])); // target V lengths (V-First)
+  const [vlenSel, setVlenSel] = useState(() => new Set([3, 4, 5, 6])); // target solution lengths (Solution Trainer)
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   const [current, setCurrent] = useState(null); // {scramble, set, caseKey, render, uTwist}
@@ -575,7 +583,7 @@ export default function L5ETrainer() {
   const [elapsed, setElapsed] = useState(0);
   const [last, setLast] = useState(null);
   const [caseStats, setCaseStats] = useState({});
-  const [vfs, setVfs] = useState({});            // V-First stats, keyed by optimal V length
+  const [vfs, setVfs] = useState({});            // Solution Trainer accuracy, keyed by solution length
   const [session, setSession] = useState([]);
   const [recap, setRecap] = useState(null);
   const [expandedSet, setExpandedSet] = useState(null);
@@ -603,11 +611,11 @@ export default function L5ETrainer() {
           }
           if (d.bar) setBar(d.bar);
           if (Array.isArray(d.selected)) setSelected(new Set(d.selected.filter((id) => SET_BY_ID[id])));
-          if (["drill", "recap", "vfirst"].includes(d.mode)) setMode(d.mode);
-          if (Array.isArray(d.vlen)) setVlenSel(new Set(d.vlen.filter((n) => n >= 1 && n <= 6)));
+          if (["drill", "recap", "solution"].includes(d.mode)) setMode(d.mode);
+          if (Array.isArray(d.vlen)) setVlenSel(new Set(d.vlen.filter((n) => n >= 1 && n <= 7)));
           if (d.vfs && typeof d.vfs === "object") {
             const v = {};
-            for (const [k, st] of Object.entries(d.vfs)) if (/^[1-6]$/.test(k)) v[k] = st;
+            for (const [k, st] of Object.entries(d.vfs)) if (/^[1-7]$/.test(k)) v[k] = st;
             setVfs(v);
           }
         }
@@ -617,6 +625,7 @@ export default function L5ETrainer() {
         if (cancelled) return;
         distRef.current = buildDist();
         vdistRef.current = buildVDist(distRef.current);
+        vbucketsRef.current = buildVBuckets(distRef.current, vdistRef.current);
         poolsRef.current = buildPools();
         setReady(true);
       }, 40);
@@ -689,7 +698,7 @@ export default function L5ETrainer() {
     } else setCurrent(null);
   }, [selected, makeScramble, poolOf]);
 
-  // V-First: greedy optimal V solution (descends the V-distance table)
+  // Solution Trainer: greedy optimal solution (descends the V-distance table)
   const solveToV = useCallback((s) => {
     const vdist = vdistRef.current;
     const path = []; let cur = copyState(s); let cd = vdist[stateIndex(cur)];
@@ -706,32 +715,47 @@ export default function L5ETrainer() {
     return path.map((mi) => MOVE_NAMES[mi]).join(" ");
   }, []);
 
-  // V-First: a random 8-11 move scramble whose optimal V length is in lenSet
-  const makeVScramble = useCallback((lenSet) => {
-    const vdist = vdistRef.current;
-    if (!vdist || !lenSet || lenSet.size === 0) return null;
-    for (let attempt = 0; attempt < 4000; attempt++) {
-      const k = 8 + Math.floor(Math.random() * 4);
-      const seq = []; let last = -1;
-      for (let n = 0; n < k; n++) { let mi; do { mi = Math.floor(Math.random() * 8); } while ((mi >> 1) === last); last = mi >> 1; seq.push(mi); }
-      const st = solvedState(); let uTwist = 0;
-      for (const mi of seq) {
-        const nm = MOVE_NAMES[mi];
-        applyMove(st, nm[0], nm.includes("'"));
-        if (nm[0] === "U") uTwist = (uTwist + (nm.includes("'") ? 2 : 1)) % 3;
-      }
-      const vlen = vdist[stateIndex(st)];
-      if (vlen > 0 && lenSet.has(vlen)) {
-        return { kind: "vfirst", scramble: seq.map((mi) => MOVE_NAMES[mi]).join(" "), render: st, uTwist, vlen, vsol: solveToV(st) };
-      }
+  // Solution Trainer: pick a target length, sample a state at that V-distance
+  // directly from the bucket, and dress it with a real (masked) scramble.
+  const makeSolutionScramble = useCallback((lenSet) => {
+    const buckets = vbucketsRef.current, dist = distRef.current;
+    if (!buckets || !lenSet) return null;
+    const lens = [...lenSet].filter((L) => buckets[L] && buckets[L].length);
+    if (!lens.length) return null;
+    for (let attempt = 0; attempt < 200; attempt++) {
+      const vlen = lens[Math.floor(Math.random() * lens.length)];
+      const bucket = buckets[vlen];
+      const st = unindex(bucket[Math.floor(Math.random() * bucket.length)]);
+      const scramble = maskedScramble(st, dist);
+      if (!scramble) continue;
+      let uTwist = 0;
+      for (const t of scramble.split(" ")) if (t[0] === "U") uTwist = (uTwist + (t.includes("'") ? 2 : 1)) % 3;
+      return { kind: "solution", scramble, render: st, uTwist, vlen, vsol: solveToV(st) };
     }
     return null;
   }, [solveToV]);
 
-  const nextV = useCallback(() => { setCurrent(makeVScramble(vlenSel)); }, [makeVScramble, vlenSel]);
+  const nextSolution = useCallback(() => {
+    setPhase("ready"); setLast(null);
+    setCurrent(makeSolutionScramble(vlenSel));
+  }, [makeSolutionScramble, vlenSel]);
+
+  // Solution Trainer: grade the picked move count against the optimal
+  const submitGuess = useCallback((n) => {
+    if (!current || current.kind !== "solution" || phase === "stopped") return;
+    const correct = n === current.vlen;
+    setLast({ kind: "solution", guess: n, correct, vlen: current.vlen, scramble: current.scramble, render: current.render, uTwist: current.uTwist, vsol: current.vsol });
+    setPhase("stopped");
+    setSession((s) => [...s.slice(-49), { kind: "solution", correct, vlen: current.vlen }]);
+    setVfs((v) => {
+      const key = String(current.vlen);
+      const prev = v[key] || { n: 0, correct: 0 };
+      return { ...v, [key]: { n: prev.n + 1, correct: prev.correct + (correct ? 1 : 0) } };
+    });
+  }, [current, phase]);
 
   const advance = useCallback(() => {
-    if (mode === "vfirst") { nextV(); return; }
+    if (mode === "solution") { nextSolution(); return; }
     if (mode === "drill") { nextDrill(); return; }
     setRecap((r) => {
       if (!r) return r;
@@ -741,13 +765,13 @@ export default function L5ETrainer() {
       setCurrent(makeScramble(it.set, it.caseKey, poolOf(it.set).classes.get(it.caseKey)));
       return { ...r, idx };
     });
-  }, [mode, nextDrill, nextV, makeScramble, poolOf]);
+  }, [mode, nextDrill, nextSolution, makeScramble, poolOf]);
 
   useEffect(() => {
     if (!ready) return;
     setPhase("ready");
     setLast(null);
-    if (mode === "vfirst") nextV();
+    if (mode === "solution") nextSolution();
     else if (mode === "drill") nextDrill();
     else startRecap();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -771,24 +795,13 @@ export default function L5ETrainer() {
     setElapsed(ms);
     setPhase("stopped");
     if (current) {
-      if (current.kind === "vfirst") {
-        const rec = { ms, kind: "vfirst", vlen: current.vlen, scramble: current.scramble, render: current.render, uTwist: current.uTwist, vsol: current.vsol };
-        setLast(rec);
-        setSession((s) => [...s.slice(-49), rec]);
-        setVfs((v) => {
-          const key = String(current.vlen);
-          const prev = v[key] || { n: 0, best: Infinity, sum: 0 };
-          return { ...v, [key]: { n: prev.n + 1, best: Math.min(prev.best, ms), sum: prev.sum + ms } };
-        });
-      } else {
-        const rec = { ms, set: current.set, caseKey: current.caseKey, render: current.render, uTwist: current.uTwist };
-        setLast(rec);
-        setSession((s) => [...s.slice(-49), rec]);
-        setCaseStats((cs) => {
-          const prev = cs[current.caseKey] || { n: 0, best: Infinity, sum: 0, set: current.set };
-          return { ...cs, [current.caseKey]: { set: current.set, n: prev.n + 1, best: Math.min(prev.best, ms), sum: prev.sum + ms } };
-        });
-      }
+      const rec = { ms, set: current.set, caseKey: current.caseKey, render: current.render, uTwist: current.uTwist };
+      setLast(rec);
+      setSession((s) => [...s.slice(-49), rec]);
+      setCaseStats((cs) => {
+        const prev = cs[current.caseKey] || { n: 0, best: Infinity, sum: 0, set: current.set };
+        return { ...cs, [current.caseKey]: { set: current.set, n: prev.n + 1, best: Math.min(prev.best, ms), sum: prev.sum + ms } };
+      });
     }
     advance();
   }, [current, advance]);
@@ -804,12 +817,21 @@ export default function L5ETrainer() {
     const down = (e) => {
       if (e.repeat) return;
       if (panel) { if (e.code === "Escape") setPanel(null); return; }
+      if (mode === "solution") {
+        if (phase === "stopped") {
+          if (e.code === "Space" || e.code === "Enter" || e.code === "NumpadEnter") { e.preventDefault(); nextSolution(); }
+          return;
+        }
+        const m = e.code.match(/^(?:Digit|Numpad)([1-7])$/);
+        if (m) { e.preventDefault(); submitGuess(+m[1]); }
+        return;
+      }
       if (phase === "running") { e.preventDefault(); stopTimer(); return; }
       if (e.code === "Space") { e.preventDefault(); trigger(); }
     };
     window.addEventListener("keydown", down);
     return () => window.removeEventListener("keydown", down);
-  }, [phase, trigger, stopTimer, panel]);
+  }, [phase, trigger, stopTimer, panel, mode, submitGuess, nextSolution]);
 
   useEffect(() => () => cancelAnimationFrame(raf.current), []);
 
@@ -909,7 +931,14 @@ export default function L5ETrainer() {
           font-size: clamp(56px, 11vw, 92px); line-height: 1.1; margin: 12px 0 4px;
           color: var(--text); font-variant-numeric: tabular-nums; }
         .timer.running { color: var(--accent); }
+        .timer.good { color: var(--accent); font-size: clamp(40px, 8vw, 64px); }
+        .timer.bad { color: #b04a42; font-size: clamp(40px, 8vw, 64px); }
         .hint { color: var(--faint); font-size: 13px; min-height: 1.2em; text-align: center; }
+        .guessrow { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; margin: 8px 0 2px; }
+        .guessbtn { width: 52px; height: 52px; border-radius: 11px; border: 1px solid var(--line);
+          background: var(--panel2); color: var(--text); font-family: 'Chivo Mono', monospace; font-size: 20px;
+          cursor: pointer; transition: all .12s; }
+        .guessbtn:hover { border-color: var(--accent); color: var(--accent); }
         .reveal { display: flex; justify-content: center; align-items: center; gap: 9px; font-size: 13px; color: var(--dim); }
         .reveal .tag { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px;
           border-radius: 999px; font-weight: 500; color: var(--text); background: var(--panel2);
@@ -1010,7 +1039,7 @@ export default function L5ETrainer() {
           </div>
         )}
 
-        {mode !== "vfirst" && (
+        {mode !== "solution" && (
           <>
             <div className="chips">
               <span className="grouplabel" style={{ marginLeft: 0 }}>L5E</span>
@@ -1041,14 +1070,14 @@ export default function L5ETrainer() {
         <div className="modes">
           <button className={"mode" + (mode === "drill" ? " on" : "")} onClick={() => setMode("drill")}>Drill</button>
           <button className={"mode" + (mode === "recap" ? " on" : "")} onClick={() => setMode("recap")}>Recap</button>
-          <button className={"mode" + (mode === "vfirst" ? " on" : "")} onClick={() => setMode("vfirst")}>V-First</button>
+          <button className={"mode" + (mode === "solution" ? " on" : "")} onClick={() => setMode("solution")}>Solution</button>
         </div>
 
-        {mode === "vfirst" && (
+        {mode === "solution" && (
           <>
             <div className="chips">
-              <span className="grouplabel" style={{ marginLeft: 0 }}>V length</span>
-              {[1, 2, 3, 4, 5, 6].map((L) => (
+              <span className="grouplabel" style={{ marginLeft: 0 }}>solution length</span>
+              {[1, 2, 3, 4, 5, 6, 7].map((L) => (
                 <button key={L} className={"chip" + (vlenSel.has(L) ? " on" : "")}
                   style={{ "--cdot": "var(--accent)" }} onClick={() => toggleVlen(L)}>
                   <span className="dot" />{L}
@@ -1056,7 +1085,7 @@ export default function L5ETrainer() {
               ))}
             </div>
             <div className="presets">
-              <button className="preset" onClick={() => setVlenSel(new Set([1, 2, 3, 4, 5, 6]))}>all</button>
+              <button className="preset" onClick={() => setVlenSel(new Set([1, 2, 3, 4, 5, 6, 7]))}>all</button>
               <button className="preset" onClick={() => setVlenSel(new Set([3, 4, 5, 6]))}>typical</button>
               <button className="preset" onClick={() => setVlenSel(new Set())}>none</button>
             </div>
@@ -1082,8 +1111,38 @@ export default function L5ETrainer() {
         ) : !current ? (
           <div className="stage" style={{ cursor: "default" }}>
             <div className="empty" style={{ padding: "40px 0", textAlign: "center" }}>
-              {mode === "vfirst" ? "Select at least one V length to start." : "Select at least one set to start."}
+              {mode === "solution" ? "Select at least one solution length to start." : "Select at least one set to start."}
             </div>
+          </div>
+        ) : current.kind === "solution" ? (
+          <div className="stage" style={{ cursor: "default" }}>
+            <div className="stagegrid">
+              <div className="scramble">{current.scramble}</div>
+              <PyraminxNet state={current.render} uTwist={current.uTwist} />
+            </div>
+            {phase === "stopped" && last ? (
+              <>
+                <div className={"timer" + (last.correct ? " good" : " bad")}>{last.correct ? "Correct" : "Not optimal"}</div>
+                <div className="reveal">
+                  {!last.correct ? <span>you picked {last.guess} —</span> : null}
+                  <span>optimal is</span>
+                  <span className="tag" style={{ "--cdot": "var(--accent)" }}>
+                    <span className="dot" />{last.vlen} {last.vlen === 1 ? "move" : "moves"}
+                  </span>
+                  {last.vsol ? <span className="mono casename">{last.vsol}</span> : null}
+                  <button className="restart" style={{ marginTop: 0 }} onClick={nextSolution}>Next</button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="hint" style={{ marginTop: 14 }}>How many moves is the shortest solution?</div>
+                <div className="guessrow">
+                  {[1, 2, 3, 4, 5, 6, 7].map((N) => (
+                    <button key={N} className="guessbtn" onClick={() => submitGuess(N)}>{N}</button>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         ) : (
           <div className="stage" onPointerDown={(e) => { e.preventDefault(); trigger(); }}>
@@ -1093,29 +1152,19 @@ export default function L5ETrainer() {
             </div>
             <div className={"timer" + (phase === "running" ? " running" : "")}>{fmt(elapsed)}</div>
             {phase === "stopped" && last ? (
-              last.kind === "vfirst" ? (
-                <div className="reveal">
-                  <span>optimal V</span>
-                  <span className="tag" style={{ "--cdot": "var(--accent)" }}>
-                    <span className="dot" />{last.vlen} {last.vlen === 1 ? "move" : "moves"}
-                  </span>
-                  {last.vsol ? <span className="mono casename">{last.vsol}</span> : null}
-                </div>
-              ) : (
-                <div className="reveal">
-                  <span>that was</span>
-                  <span className="tag" style={{ "--cdot": SET_BY_ID[last.set].color }}>
-                    <span className="dot" />{SET_BY_ID[last.set].name}
-                  </span>
-                  {lookupName(last.render, last.uTwist, last.caseKey) ? (
-                    <span className="casename">{lookupName(last.render, last.uTwist, last.caseKey)}</span>
-                  ) : null}
-                  <button className="algbtn" onPointerDown={(e) => e.stopPropagation()}
-                    onClick={(e) => { e.stopPropagation(); setPanel({ kind: "live", ...last }); }}>
-                    view algs
-                  </button>
-                </div>
-              )
+              <div className="reveal">
+                <span>that was</span>
+                <span className="tag" style={{ "--cdot": SET_BY_ID[last.set].color }}>
+                  <span className="dot" />{SET_BY_ID[last.set].name}
+                </span>
+                {lookupName(last.render, last.uTwist, last.caseKey) ? (
+                  <span className="casename">{lookupName(last.render, last.uTwist, last.caseKey)}</span>
+                ) : null}
+                <button className="algbtn" onPointerDown={(e) => e.stopPropagation()}
+                  onClick={(e) => { e.stopPropagation(); setPanel({ kind: "live", ...last }); }}>
+                  view algs
+                </button>
+              </div>
             ) : (
               <div className="hint">{phase === "running" ? "tap or any key to stop" : "tap or space to start"}</div>
             )}
@@ -1124,14 +1173,14 @@ export default function L5ETrainer() {
 
         <div className="panelrow">
           <div className="card">
-            {mode === "vfirst" ? (
+            {mode === "solution" ? (
               <>
-                <h3>V-First — by optimal length</h3>
+                <h3>Solution Trainer — accuracy by length</h3>
                 {Object.keys(vfs).length === 0 ? (
-                  <div className="empty">No V-First solves yet. Times land here, by optimal V length.</div>
+                  <div className="empty">No answers yet. Pick the move count and your accuracy lands here, by solution length.</div>
                 ) : (
                   <table>
-                    <thead><tr><th>V length</th><th>Solves</th><th>Best</th><th>Mean</th></tr></thead>
+                    <thead><tr><th>Length</th><th>Seen</th><th>Correct</th><th>Accuracy</th></tr></thead>
                     <tbody>
                       {Object.keys(vfs).map(Number).sort((a, b) => a - b).map((L) => {
                         const a = vfs[String(L)];
@@ -1139,8 +1188,8 @@ export default function L5ETrainer() {
                           <tr key={L}>
                             <td className="name">{L} moves</td>
                             <td className="mono">{a.n}</td>
-                            <td className="mono">{fmt(a.best)}</td>
-                            <td className="mono">{fmt(a.sum / a.n)}</td>
+                            <td className="mono">{a.correct}</td>
+                            <td className="mono">{Math.round((a.correct / a.n) * 100)}%</td>
                           </tr>
                         );
                       })}
@@ -1202,7 +1251,10 @@ export default function L5ETrainer() {
             ) : (
               <div className="times">
                 {session.slice(-24).map((t, i) => (
-                  <span key={i} className="timepill" style={{ "--cdot": t.set ? SET_BY_ID[t.set].color : "var(--accent)" }}>{fmt(t.ms)}</span>
+                  <span key={i} className="timepill"
+                    style={{ "--cdot": t.kind === "solution" ? (t.correct ? "var(--accent)" : "#b04a42") : (t.set ? SET_BY_ID[t.set].color : "var(--accent)") }}>
+                    {t.kind === "solution" ? (t.correct ? "✓" : "✗") : fmt(t.ms)}
+                  </span>
                 ))}
               </div>
             )}
