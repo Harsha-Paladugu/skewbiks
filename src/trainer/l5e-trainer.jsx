@@ -34,12 +34,6 @@ function applyMove(s, face, inv) {
     if (m.center >= 0) s.c[m.center] = (s.c[m.center] + 1) % 3;
   }
 }
-function applyAlg(s, alg) {
-  for (const t of alg.trim().split(/\s+/)) {
-    if (!t) continue;
-    applyMove(s, t[0], t.includes("'") !== t.includes("2"));
-  }
-}
 function stateKey(s) {
   const parts = [];
   for (let i = 0; i < 6; i++) parts.push("" + s.e[i * 2] + s.e[i * 2 + 1]);
@@ -236,8 +230,6 @@ const SET_BY_ID = Object.fromEntries(SETS.map((s) => [s.id, s]));
 const L5E_IDS = SETS.filter((s) => s.group === "L5E").map((s) => s.id);
 const ALL_IDS = SETS.map((s) => s.id);
 
-const SOLVED_KEY = stateKey(solvedState());
-
 const realCanonKey = (st, t) => {
   const base = copyState(st);
   let best = null;
@@ -263,7 +255,6 @@ function buildPools() {
     pools[setId].classes.get(rc).push({ st, t });
     pools[setId].states.push({ caseKey: rc, st, t });
   };
-  const solvedCK = aufCanonKey(solvedState());
   // L5E: DL solved, other five scrambled; sets from the verified classmap
   for (const st of enumerateSpace([0, 1, 2, 3, 5])) {
     const cls = CLASSMAP[aufCanonKey(st)];
@@ -433,11 +424,6 @@ const lookupName = (render, uTwist, caseKey) => {
   }
   return SHEET.CNAME[caseKey] || null;
 };
-const SOLVED_PRES = (() => {
-  const out = new Set(); const t = solvedState();
-  for (let k = 0; k < 3; k++) { out.add(stateKey(t) + "|" + k); applyMove(t, "U", false); }
-  return out;
-})();
 function algGroups(render, uTwist) {
   const groups = [];
   const collect = (label, st, tw) => {
