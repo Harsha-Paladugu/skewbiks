@@ -105,8 +105,14 @@ function unindex(ix) {
 const bottomEdgesPlaced = (s) => [3, 4, 5].reduce((g, dd) => g + (s.e[dd * 2] === dd && s.e[dd * 2 + 1] === 0 ? 1 : 0), 0) >= 2;
 // Solution Trainer goal (the "V"): >=2 of the bottom edges (DF/DL/DR) placed and centers solved
 const isVState = (s) => !s.c[0] && !s.c[1] && !s.c[2] && bottomEdgesPlaced(s);
-// TL4E-B goal: a V (>=2 bottom edges, L & R centers solved) but with the back center twisted
-const isTL4EState = (s) => !s.c[0] && !s.c[1] && s.c[2] !== 0 && bottomEdgesPlaced(s);
+// TL4E-B goal: a V with exactly the center OPPOSITE the open bottom slot twisted
+// (others solved). B twisted <-> DL+DR solved (DF open); L <-> DF+DL (DR open);
+// R <-> DF+DR (DL open). Slots: DF=3, DL=4, DR=5; centers c=[L,R,B].
+const edgeSolved = (s, slot) => s.e[slot * 2] === slot && s.e[slot * 2 + 1] === 0;
+const isTL4EState = (s) =>
+  (s.c[2] && !s.c[0] && !s.c[1] && edgeSolved(s, 4) && edgeSolved(s, 5)) ||
+  (s.c[0] && !s.c[1] && !s.c[2] && edgeSolved(s, 3) && edgeSolved(s, 4)) ||
+  (s.c[1] && !s.c[0] && !s.c[2] && edgeSolved(s, 3) && edgeSolved(s, 5));
 // multi-source BFS: distance from every reachable state to the nearest goal (max ~7)
 function buildGoalDist(dist, isGoal) {
   const vdist = new Int8Array(SPACE).fill(-1);
