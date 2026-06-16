@@ -55,6 +55,19 @@
 .tbbtn { background: transparent; border: 1px solid var(--line2); color: var(--mut); border-radius: 7px;
   padding: .25em .8em; font-size: 12.5px; font-family: inherit; cursor: pointer; }
 .tbbtn.on { color: var(--actink); background: var(--act); border-color: var(--act); font-weight: 600; }
+/* primary mode tabs (top of the page) */
+.modetabs { margin: 2px 0 18px; gap: 8px; }
+.modetabs .mode { padding: .5em 1.2em; font-size: 14px; }
+.chips .modes { margin-bottom: 0; }            /* segmented control nested in a label row */
+/* collapsible Setup card (Drill/Recap config) */
+.setupcard { padding: 0; margin-bottom: 18px; overflow: hidden; }
+.setuphead { display: flex; align-items: center; gap: 10px; width: 100%; background: none; border: none;
+  color: var(--txt); font: inherit; cursor: pointer; padding: 13px 18px; text-align: left; }
+.setuphead:hover { background: var(--panel2); }
+.setuphead strong { font-weight: 600; font-size: 14.5px; }
+.setupsum { color: var(--mut); font-size: 13px; font-weight: 400; }
+.setuphead .chev { margin-left: auto; font-size: 12px; }
+.setupbody { padding: 4px 18px 14px; border-top: 1px solid var(--line); }
 
 /* inputs — same field style as the scramble search box */
 .psoinp, .timein { background: var(--panel); border: 1px solid var(--line2); border-radius: 10px;

@@ -602,6 +602,7 @@ export default function L5ETrainer() {
   const [vlenSel, setVlenSel] = useState(() => new Set([3, 4, 5, 6])); // target solution lengths (Solution Trainer)
   const [goals, setGoals] = useState(() => new Set(["v", "pv", "tl4e"])); // which goal types the Solution union includes
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [setupOpen, setSetupOpen] = useState(true);  // drill/recap config card open?
 
   const [current, setCurrent] = useState(null); // {scramble, set, caseKey, render, uTwist}
   const [phase, setPhase] = useState("ready");
@@ -651,6 +652,7 @@ export default function L5ETrainer() {
           if (Array.isArray(d.caseSel)) setCaseSel(new Set(d.caseSel.filter((k) => typeof k === "string" && SET_BY_ID[k.split(CASE_SEP)[0]])));
           if (Array.isArray(d.caseKnown)) setCaseKnown(new Set(d.caseKnown.filter((k) => typeof k === "string" && SET_BY_ID[k.split(CASE_SEP)[0]])));
           if (["all", "learning", "known"].includes(d.scope)) setScope(d.scope);
+          if (typeof d.setupOpen === "boolean") setSetupOpen(d.setupOpen);
           if (d.vfs && typeof d.vfs === "object") {
             const v = {};
             for (const [k, st] of Object.entries(d.vfs)) if (/^[1-7]$/.test(k)) v[k] = st;
@@ -679,10 +681,10 @@ export default function L5ETrainer() {
     clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
       try {
-        window.storage.set(STORE_KEY, JSON.stringify({ caseStats, l5eBars: [...l5eBars], l4eSlots: [...l4eSlots], selected: [...selected], mode, vlen: [...vlenSel], goals: [...goals], caseSel: [...caseSel], caseKnown: [...caseKnown], scope, vfs, pso })).catch(() => {});
+        window.storage.set(STORE_KEY, JSON.stringify({ caseStats, l5eBars: [...l5eBars], l4eSlots: [...l4eSlots], selected: [...selected], mode, vlen: [...vlenSel], goals: [...goals], caseSel: [...caseSel], caseKnown: [...caseKnown], scope, setupOpen, vfs, pso })).catch(() => {});
       } catch (e) {}
     }, 400);
-  }, [caseStats, l5eBars, l4eSlots, selected, mode, vlenSel, goals, caseSel, caseKnown, scope, vfs, pso]);
+  }, [caseStats, l5eBars, l4eSlots, selected, mode, vlenSel, goals, caseSel, caseKnown, scope, setupOpen, vfs, pso]);
 
   const makeScramble = useCallback((setId, caseKey, presArr) => {
     // present the case at a randomly chosen selected angle (bar for L5E, open
@@ -711,6 +713,7 @@ export default function L5ETrainer() {
 
   const poolOf = useCallback((id) => {
     const pools = poolsRef.current;
+    if (!pools) return null; // tables not built yet (pre-ready)
     // L4E always uses the front (DF) case set; ML4E-R/-L are angles, not pools.
     return id === "l4e" ? pools["l4e-DF"] : pools[id];
   }, []);
@@ -1028,6 +1031,7 @@ export default function L5ETrainer() {
       const tag = e.target && e.target.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA") return;  // don't hijack keys while typing offsets
       if (panel) { if (e.code === "Escape") setPanel(null); return; }
+      if (caseBrowser) { if (e.code === "Escape") setCaseBrowser(null); return; }
       if (mode === "recog") {
         if (e.code === "Space" || e.code === "Enter" || e.code === "NumpadEnter") {
           e.preventDefault();
@@ -1057,7 +1061,7 @@ export default function L5ETrainer() {
     };
     window.addEventListener("keydown", down);
     return () => window.removeEventListener("keydown", down);
-  }, [phase, trigger, stopTimer, panel, mode, submitGuess, nextSolution, nextRecog, revealRecog, last]);
+  }, [phase, trigger, stopTimer, panel, caseBrowser, mode, submitGuess, nextSolution, nextRecog, revealRecog, last]);
 
   useEffect(() => () => cancelAnimationFrame(raf.current), []);
 
@@ -1110,7 +1114,7 @@ export default function L5ETrainer() {
     setVfs({});
     setSession([]);
     setLast(null);
-    try { window.storage.set(STORE_KEY, JSON.stringify({ caseStats: {}, l5eBars: [...l5eBars], l4eSlots: [...l4eSlots], selected: [...selected], mode, vlen: [...vlenSel], goals: [...goals], caseSel: [...caseSel], caseKnown: [...caseKnown], scope, vfs: {}, pso })).catch(() => {}); } catch (e) {}
+    try { window.storage.set(STORE_KEY, JSON.stringify({ caseStats: {}, l5eBars: [...l5eBars], l4eSlots: [...l4eSlots], selected: [...selected], mode, vlen: [...vlenSel], goals: [...goals], caseSel: [...caseSel], caseKnown: [...caseKnown], scope, setupOpen, vfs: {}, pso })).catch(() => {}); } catch (e) {}
   };
 
   return (
@@ -1132,114 +1136,98 @@ export default function L5ETrainer() {
           </div>
         )}
 
-        {mode !== "solution" && mode !== "recog" && (
-          <>
-            {["L5E", "L4E"].map((grp) => (
-              <details key={grp} className="setgrp" open>
-                <summary>
-                  <span className="grouplabel" style={{ marginLeft: 0 }}>{grp}</span>
-                  <span className="ct">{SETS.filter((s) => s.group === grp && selected.has(s.id)).length} on</span>
-                </summary>
-                <div className="chips" style={{ marginTop: 8 }}>
-                  {SETS.filter((s) => s.group === grp).map((s) => (
-                    <button key={s.id} className={"chip" + (selected.has(s.id) ? " on" : "")}
-                      style={{ "--cdot": s.color }} onClick={() => toggleSet(s.id)}>
-                      <span className="dot" />{s.name}
-                      {ready && <span className="ct">{counts[s.id]}</span>}
-                    </button>
-                  ))}
-                </div>
-                {/* presentation-angle menu for this group (replaces the old icon) */}
-                <div className="chips" style={{ marginTop: 6 }}>
-                  <span className="grouplabel" style={{ marginLeft: 0 }}>{grp === "L4E" ? "slot" : "bar"}</span>
-                  {(grp === "L4E" ? L4E_SLOTS : L5E_BARS).map((a) => {
-                    const sel = grp === "L4E" ? l4eSlots : l5eBars;
-                    const toggle = grp === "L4E" ? toggleL4eSlot : toggleL5eBar;
-                    return (
-                      <button key={a.id} className={"chip" + (sel.has(a.id) ? " on" : "")}
-                        style={{ "--cdot": "var(--accent)" }} onClick={() => toggle(a.id)}>
-                        <span className="dot" />{a.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </details>
-            ))}
-            <div className="presets">
-              <button className="preset" onClick={() => setSelected(new Set(L5E_IDS))}>all L5E</button>
-              <button className="preset" onClick={() => setSelected(new Set(ALL_IDS))}>everything</button>
-              <button className="preset" onClick={() => setSelected(new Set())}>none</button>
-            </div>
-
-            {/* per selected set: choose which individual cases are generated */}
-            {ready && SETS.filter((s) => selected.has(s.id)).map((s) => {
-              const cases = casesOf(s.id);
-              const open = caseBrowser === s.id;
-              return (
-                <div key={s.id} className="casepick">
-                  <button className="casetoggle" onClick={() => setCaseBrowser(open ? null : s.id)}>
-                    <span className="chev">{open ? "▾" : "▸"}</span>
-                    <span className="dot" style={{ background: s.color }} />
-                    {s.name} cases
-                    <span className="ct">{enabledCount(s.id)}/{cases.length}</span>
-                    <span className="ct" style={{ color: "var(--green)" }}>{knownCount(s.id)} known</span>
-                  </button>
-                  {open && (
-                    <div className="caselistwrap">
-                      <div className="presets" style={{ margin: "0 2px 8px" }}>
-                        <button className="preset" onClick={() => setAllCases(s.id, true)}>all</button>
-                        <button className="preset" onClick={() => setAllCases(s.id, false)}>none</button>
-                        <button className="preset" onClick={() => setAllKnown(s.id, true)}>mark all known</button>
-                        <button className="preset" onClick={() => setAllKnown(s.id, false)}>mark all unknown</button>
-                      </div>
-                      <div className="chips">
-                        {cases.map(({ name }) => {
-                          const kn = caseIsKnown(s.id, name);
-                          return (
-                            <span key={name} className="markwrap">
-                              <button className={"chip" + (caseEnabled(s.id, name) ? " on" : "")}
-                                style={{ "--cdot": s.color }} onClick={() => toggleCase(s.id, name)}>
-                                <span className="dot" />{name}{kn ? " ✓" : ""}
-                              </button>
-                              <button className={"markbtn ok" + (kn ? " sel" : "")} title="mark known"
-                                onClick={() => toggleKnown(s.id, name)}>K</button>
-                            </span>
-                          );
-                        })}
-                      </div>
-                      <div className="recapbar" style={{ margin: "8px 2px 0" }}>
-                        <span className="mono">{knownCount(s.id)}/{cases.length} known</span>
-                        <div className="rtrack"><div className="rfill" style={{ width: `${cases.length ? (knownCount(s.id) / cases.length) * 100 : 0}%` }} /></div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </>
-        )}
-
-        <div className="modes">
+        {/* mode tabs — the primary axis, first */}
+        <div className="modes modetabs">
           <button className={"mode" + (mode === "drill" ? " on" : "")} onClick={() => setMode("drill")}>Drill</button>
           <button className={"mode" + (mode === "recap" ? " on" : "")} onClick={() => setMode("recap")}>Recap</button>
           <button className={"mode" + (mode === "solution" ? " on" : "")} onClick={() => setMode("solution")}>Solution</button>
           <button className={"mode" + (mode === "recog" ? " on" : "")} onClick={() => setMode("recog")}>Recog</button>
         </div>
 
+        {/* ---------- Drill / Recap controls ---------- */}
         {(mode === "drill" || mode === "recap") && (
-          <div className="chips" style={{ alignItems: "center" }}>
-            <span className="grouplabel" style={{ marginLeft: 0 }}>practice</span>
-            <div className="modes" style={{ marginBottom: 0 }}>
-              {[["all", "All"], ["learning", "Learning"], ["known", "Known"]].map(([v, l]) => (
-                <button key={v} className={"mode" + (scope === v ? " on" : "")} onClick={() => setScope(v)}>{l}</button>
-              ))}
+          <>
+            <div className="chips" style={{ alignItems: "center" }}>
+              <span className="grouplabel">practice</span>
+              <div className="modes">
+                {[["all", "All"], ["learning", "Learning"], ["known", "Known"]].map(([v, l]) => (
+                  <button key={v} className={"mode" + (scope === v ? " on" : "")} onClick={() => setScope(v)}>{l}</button>
+                ))}
+              </div>
             </div>
-          </div>
+
+            <div className="card setupcard">
+              {(() => {
+                const sel = SETS.filter((s) => selected.has(s.id));
+                const tot = sel.reduce((a, s) => a + casesOf(s.id).length, 0);
+                const kno = sel.reduce((a, s) => a + knownCount(s.id), 0);
+                const summary = `${selected.size} set${selected.size === 1 ? "" : "s"}${tot ? ` · ${kno}/${tot} known` : ""}`;
+                return (
+                  <button className="setuphead" onClick={() => setSetupOpen((o) => !o)}>
+                    <strong>Setup</strong>
+                    <span className="setupsum">{summary}</span>
+                    <span className="chev">{setupOpen ? "▾" : "▸"}</span>
+                  </button>
+                );
+              })()}
+              {setupOpen && (
+                <div className="setupbody">
+                  {["L5E", "L4E"].map((grp) => (
+                    <details key={grp} className="setgrp" open>
+                      <summary>
+                        <span className="grouplabel">{grp}</span>
+                        <span className="ct">{SETS.filter((s) => s.group === grp && selected.has(s.id)).length} on</span>
+                      </summary>
+                      <div className="chips" style={{ marginTop: 8 }}>
+                        {SETS.filter((s) => s.group === grp).map((s) => (
+                          <button key={s.id} className={"chip" + (selected.has(s.id) ? " on" : "")}
+                            style={{ "--cdot": s.color }} onClick={() => toggleSet(s.id)}>
+                            <span className="dot" />{s.name}
+                            {ready && <span className="ct">{counts[s.id]}</span>}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="chips">
+                        <span className="grouplabel">{grp === "L4E" ? "slot" : "bar"}</span>
+                        <div className="modes">
+                          {(grp === "L4E" ? L4E_SLOTS : L5E_BARS).map((a) => {
+                            const set = grp === "L4E" ? l4eSlots : l5eBars;
+                            const toggle = grp === "L4E" ? toggleL4eSlot : toggleL5eBar;
+                            return (
+                              <button key={a.id} className={"mode" + (set.has(a.id) ? " on" : "")} onClick={() => toggle(a.id)}>{a.label}</button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </details>
+                  ))}
+                  <div className="presets">
+                    <button className="preset" onClick={() => setSelected(new Set(L5E_IDS))}>all L5E</button>
+                    <button className="preset" onClick={() => setSelected(new Set(ALL_IDS))}>everything</button>
+                    <button className="preset" onClick={() => setSelected(new Set())}>none</button>
+                  </div>
+                  {ready && selected.size > 0 && (
+                    <div className="chips">
+                      <span className="grouplabel">cases</span>
+                      {SETS.filter((s) => selected.has(s.id)).map((s) => (
+                        <button key={s.id} className="chip" style={{ "--cdot": s.color }} onClick={() => setCaseBrowser(s.id)}>
+                          <span className="dot" />{s.name}
+                          <span className="ct">{enabledCount(s.id)}/{casesOf(s.id).length}</span>
+                          <span className="ct" style={{ color: "var(--green)" }}>{knownCount(s.id)}✓</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </>
         )}
 
+        {/* ---------- Solution controls ---------- */}
         {mode === "solution" && (
           <div className="chips">
-            <span className="grouplabel" style={{ marginLeft: 0 }}>goals</span>
+            <span className="grouplabel">goals</span>
             {GOAL_TYPES.map((g) => (
               <button key={g.id} className={"chip" + (goals.has(g.id) ? " on" : "")}
                 style={{ "--cdot": "var(--accent)" }} onClick={() => toggleGoal(g.id)}>
@@ -1251,7 +1239,7 @@ export default function L5ETrainer() {
 
         {(mode === "recog" || (mode === "solution" && goals.has("pv"))) && (
           <div className="chips" style={{ alignItems: "center" }}>
-            <span className="grouplabel" style={{ marginLeft: 0 }}>offsets</span>
+            <span className="grouplabel">offsets</span>
             <input className="offsetin mono" value={pso}
               onChange={(e) => setPso(e.target.value)}
               onBlur={commitOffsets}
@@ -1267,7 +1255,7 @@ export default function L5ETrainer() {
         {mode === "solution" && (
           <>
             <div className="chips">
-              <span className="grouplabel" style={{ marginLeft: 0 }}>length</span>
+              <span className="grouplabel">length</span>
               {[1, 2, 3, 4, 5, 6, 7].map((L) => (
                 <button key={L} className={"chip" + (vlenSel.has(L) ? " on" : "")}
                   style={{ "--cdot": "var(--accent)" }} onClick={() => toggleVlen(L)}>
@@ -1512,6 +1500,49 @@ export default function L5ETrainer() {
           </div>
         </div>
         {panel && <AlgPanel panel={panel} onClose={() => setPanel(null)} />}
+
+        {caseBrowser && SET_BY_ID[caseBrowser] && (() => {
+          const s = SET_BY_ID[caseBrowser];
+          const cases = casesOf(s.id);
+          return (
+            <div className="overlay" onPointerDown={(e) => { if (e.target === e.currentTarget) setCaseBrowser(null); }}>
+              <div className="modal">
+                <div className="modalhead">
+                  <div>
+                    <div className="modaltitle">{s.name} cases</div>
+                    <span className="tag" style={{ "--cdot": s.color }}><span className="dot" />{enabledCount(s.id)}/{cases.length} on · {knownCount(s.id)} known</span>
+                  </div>
+                  <button className="closebtn" onClick={() => setCaseBrowser(null)}>{"×"}</button>
+                </div>
+                <div className="presets" style={{ margin: "0 0 10px" }}>
+                  <button className="preset" onClick={() => setAllCases(s.id, true)}>all</button>
+                  <button className="preset" onClick={() => setAllCases(s.id, false)}>none</button>
+                  <button className="preset" onClick={() => setAllKnown(s.id, true)}>mark all known</button>
+                  <button className="preset" onClick={() => setAllKnown(s.id, false)}>mark all unknown</button>
+                </div>
+                <div className="chips">
+                  {cases.map(({ name }) => {
+                    const kn = caseIsKnown(s.id, name);
+                    return (
+                      <span key={name} className="markwrap">
+                        <button className={"chip" + (caseEnabled(s.id, name) ? " on" : "")}
+                          style={{ "--cdot": s.color }} onClick={() => toggleCase(s.id, name)}>
+                          <span className="dot" />{name}{kn ? " ✓" : ""}
+                        </button>
+                        <button className={"markbtn ok" + (kn ? " sel" : "")} title="mark known"
+                          onClick={() => toggleKnown(s.id, name)}>K</button>
+                      </span>
+                    );
+                  })}
+                </div>
+                <div className="recapbar" style={{ margin: "12px 2px 0" }}>
+                  <span className="mono">{knownCount(s.id)}/{cases.length} known</span>
+                  <div className="rtrack"><div className="rfill" style={{ width: `${cases.length ? (knownCount(s.id) / cases.length) * 100 : 0}%` }} /></div>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
       </div>
     </div>
   );
