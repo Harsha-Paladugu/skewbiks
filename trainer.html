@@ -13,12 +13,71 @@
 <link rel="stylesheet" href="css/trainer.css?v=5">
 </head>
 <body>
-<script src="js/navbar.js?v=4"></script>
+<!-- Shared account layer (site-wide sign in), then the navbar (which auto-mounts
+     the sign-in control). -->
+<script src="js/config.js?v=5"></script>
+<script src="js/account.js?v=5"></script>
+<script src="js/navbar.js?v=5"></script>
 <script>new SiteNavbar({ active: 'trainer' }).mount(document.body);</script>
 <div id="root"></div>
-<!-- Shared puzzle renderer, then the trainer app (built from src/trainer). -->
+<!-- Shared puzzle renderer (same code the rest of the site uses for diagrams). -->
 <script src="js/engine.js?v=4"></script>
 <script src="js/render.js?v=4"></script>
-<script src="js/trainer.js?v=5"></script>
+<script>
+/* Trainer storage bridge.
+   The bundled trainer reads/writes its whole state through window.storage
+   (an async {get,set} interface). We provide a cloud-backed one: when the
+   visitor is signed in, their progress lives in the account (cloud wins on
+   sign-in); otherwise it stays in localStorage, exactly as before. We hold off
+   loading the bundle until the auth state is known, so the trainer's first read
+   hits the right store. */
+(function () {
+  var A = window.OOAccount;
+  var signedIn = function () { return !!(A && A.user); };
+
+  // Coalesce rapid cloud writes; flush before the page goes away.
+  var pending = null, timer = null;
+  function flush() {
+    if (pending === null || !signedIn()) { pending = null; return; }
+    var v = pending; pending = null;
+    A.saveUserDoc('trainer', v).catch(function (e) { console.error('Trainer save failed:', e); });
+  }
+  window.addEventListener('pagehide', flush);
+  document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden') flush(); });
+
+  window.storage = {
+    get: async function (key) {
+      if (signedIn()) {
+        var v = await A.loadUserDoc('trainer');   // stored string, or null for a fresh account
+        return v == null ? null : { key: key, value: v };
+      }
+      var lv = localStorage.getItem(key);
+      return lv == null ? null : { key: key, value: lv };
+    },
+    set: async function (key, value) {
+      if (signedIn()) { pending = value; clearTimeout(timer); timer = setTimeout(flush, 800); }
+      else { try { localStorage.setItem(key, value); } catch (e) {} }
+      return { key: key, value: value };
+    }
+  };
+
+  // Boot the bundle once, after auth resolves; reload if the session changes
+  // so the trainer re-reads from the now-correct store.
+  var booted = false, bootUid = null;
+  function curUid() { return signedIn() ? A.user.uid : null; }
+  function boot() {
+    if (booted) return; booted = true; bootUid = curUid();
+    var s = document.createElement('script');
+    s.src = 'js/trainer.js?v=5';
+    document.body.appendChild(s);
+  }
+  if (A && A.whenReady) {
+    A.whenReady().then(boot);
+    A.onChange(function () { if (booted && curUid() !== bootUid) location.reload(); });
+  } else {
+    boot(); // no account layer present — behaves like the original localStorage trainer
+  }
+})();
+</script>
 </body>
 </html>

@@ -76,6 +76,12 @@ async function boot() {
   bootEl.classList.add('gone');
   setTimeout(() => bootEl.remove(), 500);
   render();
+  // restore saved preferences for a signed-in user, and again on any sign-in
+  const A = window.OOAccount;
+  if (A) {
+    A.whenReady().then(() => { if (A.user) loadPrefs(); });
+    A.onChange(() => { if (A.user) loadPrefs(); });
+  }
 }
 
 /* ---- state ---- */
@@ -93,6 +99,28 @@ const UI = {
   optionsOpen: false,
 };
 const METHOD_LABEL = { l4e: 'L4E', ml4e: 'ML4E', l5e: 'L5E', tl4eb: 'TL4E-B', psl4e: 'Pseudo L4E', psml4e: 'Pseudo ML4E' };
+
+/* ---- per-user preferences (saved to the account when signed in) ---- */
+// Only the tuning lives here — scramble, results and requested lengths stay session-local.
+const PREF_KEYS = ['methods', 'caps', 'offsetsText', 'slack', 'maxCancel', 'weights'];
+function snapshotPrefs() { const o = {}; for (const k of PREF_KEYS) o[k] = UI[k]; return o; }
+function applyPrefs(p) {
+  if (!p || typeof p !== 'object') return;
+  for (const k of PREF_KEYS) if (p[k] !== undefined && p[k] !== null) UI[k] = p[k];
+}
+let _saveTimer = null;
+function persistPrefs() {
+  const A = window.OOAccount;
+  if (!A || !A.user) return;                 // nothing to save when signed out
+  clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(() => { A.saveUserDoc('solver', snapshotPrefs()).catch(e => console.error('Save prefs failed:', e)); }, 600);
+}
+async function loadPrefs() {
+  const A = window.OOAccount;
+  if (!A || !A.user) return;
+  const p = await A.loadUserDoc('solver');     // cloud wins: account settings replace local
+  if (p) { applyPrefs(p); render(); }
+}
 
 function parsedOffsets() {
   if (!UI.methods.psl4e && !UI.methods.psml4e) return [];
@@ -140,9 +168,11 @@ function rescoreAll() { // ergonomics changed: re-rank cached results, no re-sea
     }
     UI.results[L].sort((a, b) => a.score - b.score || a.display.localeCompare(b.display));
   }
+  persistPrefs();
   render();
 }
 function fullResearch() { // structural option changed
+  persistPrefs();
   const ls = new Set(UI.lengths);
   UI.results = {}; UI.lengths = new Set();
   if (ls.size) runSearch(ls);

@@ -1,4 +1,4 @@
-/* Pyraminx.net — OO census app. Expects OOEngine, OORender, SiteNavbar and the OO_CONFIG inline block. */
+/* Pyraminx.net — OO census app. Expects OOEngine, OORender, SiteNavbar, OOAccount (auth) and OO_CONFIG (config.js). */
 /* Pyraminx OO — app layer. Expects window.OOEngine (engine) + window.OORender (net renderer). */
 (function () {
 const E = window.OOEngine, R = window.OORender;
@@ -161,17 +161,18 @@ function demoDB() {
   const KEY = 'pyraminx-oo-demo';
   const load = () => { try { return JSON.parse(localStorage.getItem(KEY)) || { solutions: [], mods: [] }; } catch { return { solutions: [], mods: [] }; } };
   const save = d => { try { localStorage.setItem(KEY, JSON.stringify(d)); } catch {} };
-  let user = null; const subs = new Set();
+  const subs = new Set();
   const notify = () => subs.forEach(f => f());
+  const A = window.OOAccount;                 // auth is shared site-wide via OOAccount
   return {
     mode: 'demo',
-    get user() { return user; },
-    get isMod() { return !!user; },           // demo: every signed-in user moderates, to try the flow
-    get isAdmin() { return !!user; },
-    async init() {},
+    get user() { return A.user; },
+    get isMod() { return !!A.user; },          // demo: every signed-in user moderates, to try the flow
+    get isAdmin() { return !!A.user; },
+    async init() { A.onChange(notify); },      // re-render on sign in/out
     onChange(f) { subs.add(f); },
-    async signIn() { user = { uid: 'demo', name: 'Demo solver', email: 'demo@example.com' }; notify(); },
-    async signOut() { user = null; notify(); },
+    signIn() { return A.signIn(); },
+    signOut() { return A.signOut(); },
     async stats() {
       const d = load(); const done = new Set();
       for (const s of d.solutions) if (s.status === 'approved') { done.add(s.classId); if (s.partnerId !== s.classId) done.add(s.partnerId); }
@@ -185,63 +186,62 @@ function demoDB() {
     },
     async pairSolutions(pairId) {
       const d = load();
-      return d.solutions.filter(s => s.pairId === pairId && (s.status === 'approved' || (user && s.uid === user.uid)));
+      return d.solutions.filter(s => s.pairId === pairId && (s.status === 'approved' || (A.user && s.uid === A.user.uid)));
     },
     async submit(doc) {
       const d = load();
       d.solutions.push({ ...doc, id: 'demo-' + Date.now() + '-' + Math.floor(Math.random()*1e6),
-        uid: user.uid, status: 'pending', createdAt: Date.now() });
+        uid: A.user.uid, status: 'pending', createdAt: Date.now() });
       save(d); notify();
     },
     async pending() { const d = load(); return d.solutions.filter(s => s.status === 'pending'); },
     async review(id, action) {
       const d = load(); const s = d.solutions.find(x => x.id === id);
-      if (s) { s.status = action; s.reviewedBy = user && user.email; }
+      if (s) { s.status = action; s.reviewedBy = A.user && A.user.email; }
       save(d); notify();
     },
     async mods() { return load().mods; },
-    async invite(email) { const d = load(); d.mods.push({ email, addedBy: user.email }); save(d); notify(); },
+    async invite(email) { const d = load(); d.mods.push({ email, addedBy: A.user.email }); save(d); notify(); },
     async revoke(email) { const d = load(); d.mods = d.mods.filter(m => m.email !== email); save(d); notify(); },
   };
 }
 
-function liveDB(cfg) {
-  let app, auth, fs, F, A;
-  let user = null, isMod = false, isAdmin = false;
+function liveDB() {
+  let fs, F;                                   // firestore handle + module, taken from OOAccount
+  let isMod = false, isAdmin = false;          // OO-specific role, derived from the shared auth state
   const subs = new Set(); const notify = () => subs.forEach(f => f());
   const adminEmails = (CFG.adminEmails || []).map(e => e.toLowerCase());
+  const A = window.OOAccount;
+  // Recompute moderator/admin status whenever the shared session changes.
+  async function recomputeRole() {
+    const user = A.user;
+    isAdmin = !!user && adminEmails.includes(user.email);
+    isMod = isAdmin;
+    if (user && !isMod) {
+      try { const m = await F.getDoc(F.doc(fs, 'moderators', user.uid)); isMod = m.exists(); } catch {}
+      if (!isMod) { // accept an invite if one exists for this email
+        try {
+          const inv = await F.getDoc(F.doc(fs, 'moderatorInvites', user.email));
+          if (inv.exists()) {
+            await F.setDoc(F.doc(fs, 'moderators', user.uid), { email: user.email, via: 'invite' });
+            isMod = true;
+          }
+        } catch {}
+      }
+    }
+  }
   return {
     mode: 'live',
-    get user() { return user; }, get isMod() { return isMod; }, get isAdmin() { return isAdmin; },
+    get user() { return A.user; }, get isMod() { return isMod; }, get isAdmin() { return isAdmin; },
     onChange(f) { subs.add(f); },
     async init() {
-      const base = 'https://www.gstatic.com/firebasejs/10.12.2/';
-      const [appM, authM, fsM] = await Promise.all([
-        import(base + 'firebase-app.js'), import(base + 'firebase-auth.js'), import(base + 'firebase-firestore.js')]);
-      A = authM; F = fsM;
-      app = appM.initializeApp(cfg);
-      auth = A.getAuth(app); fs = F.getFirestore(app);
-      A.onAuthStateChanged(auth, async u => {
-        user = u ? { uid: u.uid, name: u.displayName, email: (u.email || '').toLowerCase() } : null;
-        isAdmin = !!user && adminEmails.includes(user.email);
-        isMod = isAdmin;
-        if (user && !isMod) {
-          try { const m = await F.getDoc(F.doc(fs, 'moderators', user.uid)); isMod = m.exists(); } catch {}
-          if (!isMod) { // accept an invite if one exists for this email
-            try {
-              const inv = await F.getDoc(F.doc(fs, 'moderatorInvites', user.email));
-              if (inv.exists()) {
-                await F.setDoc(F.doc(fs, 'moderators', user.uid), { email: user.email, via: 'invite' });
-                isMod = true;
-              }
-            } catch {}
-          }
-        }
-        notify();
-      });
+      await A.whenReady();                     // OOAccount owns the single Firebase app + auth
+      fs = A.fb.fs; F = A.fb.F;
+      await recomputeRole();
+      A.onChange(async () => { await recomputeRole(); notify(); });
     },
-    async signIn() { await A.signInWithPopup(auth, new A.GoogleAuthProvider()); },
-    async signOut() { await A.signOut(auth); },
+    signIn() { return A.signIn(); },
+    signOut() { return A.signOut(); },
     async stats() {
       try { const d = await F.getDoc(F.doc(fs, 'meta', 'stats'));
         return d.exists() ? d.data() : { done: 0, total: T.reps.length };
@@ -262,16 +262,16 @@ function liveDB(cfg) {
       const q1 = F.query(F.collection(fs, 'solutions'),
         F.where('pairId', '==', pairId), F.where('status', '==', 'approved'));
       (await F.getDocs(q1)).forEach(d => out.push({ id: d.id, ...d.data() }));
-      if (user) {
+      if (A.user) {
         const q2 = F.query(F.collection(fs, 'solutions'),
-          F.where('pairId', '==', pairId), F.where('uid', '==', user.uid), F.where('status', '==', 'pending'));
+          F.where('pairId', '==', pairId), F.where('uid', '==', A.user.uid), F.where('status', '==', 'pending'));
         (await F.getDocs(q2)).forEach(d => out.push({ id: d.id, ...d.data() }));
       }
       return out;
     },
     async submit(doc) {
       await F.addDoc(F.collection(fs, 'solutions'), {
-        ...doc, uid: user.uid, status: 'pending', createdAt: F.serverTimestamp() });
+        ...doc, uid: A.user.uid, status: 'pending', createdAt: F.serverTimestamp() });
       notify();
     },
     async pending() {
@@ -281,7 +281,7 @@ function liveDB(cfg) {
     },
     async review(id, action) {
       if (action === 'rejected') {
-        await F.updateDoc(F.doc(fs, 'solutions', id), { status: 'rejected', reviewedBy: user.email });
+        await F.updateDoc(F.doc(fs, 'solutions', id), { status: 'rejected', reviewedBy: A.user.email });
         notify(); return;
       }
       // approval: transaction updates the solution, the done bitmap and the counter
@@ -305,7 +305,7 @@ function liveDB(cfg) {
         let b64 = ''; const CH = 8192;
         for (let i = 0; i < bm.length; i += CH) b64 += String.fromCharCode.apply(null, bm.subarray(i, i + CH));
         b64 = btoa(b64);
-        tx.update(solRef, { status: 'approved', reviewedBy: user.email });
+        tx.update(solRef, { status: 'approved', reviewedBy: A.user.email });
         tx.set(mapRef, { b64 });
         const done = (statDoc.exists() ? statDoc.data().done || 0 : 0) + added;
         tx.set(statRef, { done, total: T.reps.length });
@@ -318,7 +318,7 @@ function liveDB(cfg) {
         (await F.getDocs(F.collection(fs, 'moderatorInvites'))).forEach(d => out.push({ email: d.id, invite: true, ...d.data() })); } catch {}
       return out;
     },
-    async invite(email) { await F.setDoc(F.doc(fs, 'moderatorInvites', email.toLowerCase()), { addedBy: user.email }); notify(); },
+    async invite(email) { await F.setDoc(F.doc(fs, 'moderatorInvites', email.toLowerCase()), { addedBy: A.user.email }); notify(); },
     async revoke(key) {
       try { await F.deleteDoc(F.doc(fs, 'moderators', key)); } catch {}
       try { await F.deleteDoc(F.doc(fs, 'moderatorInvites', key)); } catch {}
@@ -705,7 +705,7 @@ async function boot() {
     label.textContent = (names[stage] || stage) + '\u2026';
     barEl.style.width = Math.round(100 * n / total) + '%';
   };
-  DB = (CFG.firebase && CFG.firebase.apiKey) ? liveDB(CFG.firebase) : demoDB();
+  DB = (window.OOAccount.mode === 'live') ? liveDB() : demoDB();
   DB.onChange(() => render());
   const dbInit = DB.init().catch(e => toast('Database connection failed: ' + e.message));
   await buildTables(report);

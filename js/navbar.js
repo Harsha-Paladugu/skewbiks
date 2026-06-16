@@ -48,11 +48,15 @@
     element() {
       const tabs = SECTIONS.map(s =>
         el('a', { class: 'navlink' + (s.id === this.active ? ' on' : ''), href: s.href }, s.label));
+      // A page may supply its own right-side slot; otherwise fall back to the
+      // shared sign-in control so login shows up site-wide.
+      const right = this.right
+        || (window.OOAccount && window.OOAccount.authBox ? window.OOAccount.authBox() : null);
       const main = el('div', { class: 'topbar-main' },
         el('a', { href: 'index.html', class: 'wordmark' },
           el('span', { class: 'tri', 'aria-hidden': 'true' }), 'PYRAMINX ', el('b', null, '.net')),
         el.apply(null, ['nav', { class: 'navtabs', 'aria-label': 'site' }].concat(tabs)),
-        this.right);
+        right);
       const header = el('header', { class: 'topbar' }, main);
       if (this.sub.length) {
         const links = this.sub.map(i =>
