@@ -1144,7 +1144,7 @@ export default function L5ETrainer() {
           <button className={"mode" + (mode === "drill" || mode === "recap" ? " on" : "")}
             onClick={() => { if (mode !== "drill" && mode !== "recap") setMode(lastAlgoMode.current); }}>Algorithm</button>
           <button className={"mode" + (mode === "solution" ? " on" : "")} onClick={() => setMode("solution")}>Solution</button>
-          <button className={"mode" + (mode === "recog" ? " on" : "")} onClick={() => setMode("recog")}>Recog</button>
+          <button className={"mode" + (mode === "recog" ? " on" : "")} onClick={() => setMode("recog")}>Pseudo-V</button>
         </div>
 
         {/* ---------- Algorithm trainer: Drill / Recap ---------- */}
@@ -1440,7 +1440,7 @@ export default function L5ETrainer() {
               </>
             ) : mode === "recog" ? (
               <>
-                <h3>Recog</h3>
+                <h3>Pseudo-V</h3>
                 <div className="empty">Identify the pseudo-offset L4E case, then reveal to check. Set the offsets above.</div>
               </>
             ) : (
