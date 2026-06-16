@@ -73,6 +73,7 @@ header { display: flex; align-items: center; gap: 14px; margin: 4px 0 20px; flex
 .scramble { font-family: var(--monof); font-size: clamp(19px, 3vw, 27px);
   letter-spacing: .13em; line-height: 1.6; color: var(--txt); text-align: left; }
 .pyranet { width: 100%; max-width: 190px; justify-self: center; }
+.pyranet svg { width: 100%; height: auto; display: block; } /* OORender emits w/h attrs; let it scale to the wrapper */
 .timer { font-family: var(--monof); font-weight: 300; text-align: center;
   font-size: clamp(56px, 11vw, 92px); line-height: 1.1; margin: 12px 0 4px;
   color: var(--txt); font-variant-numeric: tabular-nums; }

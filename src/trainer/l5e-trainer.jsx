@@ -410,98 +410,16 @@ function buildPools() {
 }
 
 // ---------- pyraminx state image ----------
-// Net: F (center, point up), Lf and Rf folded out left/right, D below (point down).
-// Colors: green front, red left, blue right, yellow down.
-const FACE_COLOR = { F: "#3fbf52", Lf: "#e8473d", Rf: "#3a7fe8", D: "#f2cf3c" };
-// 3D-style apex view: looking down the U axis from front-above.
-// Faces F (bottom wedge), Lf (left), Rf (right) meet at the apex; D is hidden.
-const P_B = [1.0, 0.10], P_L = [0.06, 1.74], P_R = [1.94, 1.74];
-const P_APEX = [1.0, 0.97]; // apex pulled toward the back face for perspective: F appears largest
-const VTX = {
-  F:  { U: P_APEX, L: P_L, R: P_R },
-  Lf: { U: P_APEX, L: P_L, B: P_B },
-  Rf: { U: P_APEX, R: P_R, B: P_B },
-};
-const FACE_EDGE_SLOT = {
-  F: { "U,L": 0, "U,R": 1, "L,R": 3 },
-  D: { "L,R": 3, "L,B": 4, "R,B": 5 },
-  Lf: { "U,L": 0, "U,B": 2, "L,B": 4 },
-  Rf: { "U,R": 1, "U,B": 2, "R,B": 5 },
-};
-const SLOT_FACES = [["F", "Lf"], ["F", "Rf"], ["Lf", "Rf"], ["F", "D"], ["Lf", "D"], ["Rf", "D"]];
-const FACEMAP = {
-  U: { F: "Lf", Lf: "Rf", Rf: "F", D: "D" },
-  R: { F: "Rf", Rf: "D", D: "F", Lf: "Lf" },
-  L: { F: "D", D: "Lf", Lf: "F", Rf: "Rf" },
-  B: { Lf: "D", D: "Rf", Rf: "Lf", F: "F" },
-};
-const FACE_SHADE = { F: 1, Lf: 0.82, Rf: 0.91 };
-const shade = (hex, f) => {
-  if (f >= 1) return hex;
-  const n = parseInt(hex.slice(1), 16);
-  const ch = (x) => Math.round(((n >> x) & 255) * f).toString(16).padStart(2, "0");
-  return "#" + ch(16) + ch(8) + ch(0);
-};
-function buildFacelets() {
-  const out = [];
-  for (const face of ["F", "Lf", "Rf"]) {
-    const names = Object.keys(VTX[face]);
-    const [An, Bn, Cn] = names;
-    const A = VTX[face][An], B = VTX[face][Bn], C = VTX[face][Cn];
-    const G = (i, j) => [
-      A[0] + (i / 3) * (B[0] - A[0]) + (j / 3) * (C[0] - A[0]),
-      A[1] + (i / 3) * (B[1] - A[1]) + (j / 3) * (C[1] - A[1]),
-    ];
-    const up = (i, j) => [G(i, j), G(i + 1, j), G(i, j + 1)];
-    const dn = (i, j) => [G(i + 1, j), G(i, j + 1), G(i + 1, j + 1)];
-    const tris = [
-      { pts: up(0, 0), kind: "tip", ref: An },
-      { pts: up(2, 0), kind: "tip", ref: Bn },
-      { pts: up(0, 2), kind: "tip", ref: Cn },
-      { pts: dn(0, 0), kind: "center", ref: An },
-      { pts: dn(1, 0), kind: "center", ref: Bn },
-      { pts: dn(0, 1), kind: "center", ref: Cn },
-      { pts: up(1, 0), kind: "edge", ref: [An, Bn] },
-      { pts: up(0, 1), kind: "edge", ref: [An, Cn] },
-      { pts: up(1, 1), kind: "edge", ref: [Bn, Cn] },
-    ];
-    for (const t of tris) out.push({ ...t, face });
-  }
-  return out;
-}
-const FACELETS = buildFacelets();
-
-function applyMapInv(face, vertex, t) {
-  let f = face;
-  const m = FACEMAP[vertex];
-  for (let i = 0; i < ((-t % 3) + 3) % 3; i++) f = m[f];
-  return f;
-}
+// Render through the shared site renderer (js/render.js -> window.OORender) so
+// the trainer's diagrams are IDENTICAL to the rest of pyraminx.net — same
+// geometry, colors and the bottom-face inset — instead of duplicating the
+// drawing code here. The trainer's state {e,c} plus uTwist maps directly onto
+// the engine state (engine G4 === the old FACEMAP, same e/c layout), so we only
+// have to pass u: uTwist.
 function PyraminxNet({ state, uTwist }) {
-  const colorOf = (fl) => {
-    let face;
-    if (fl.kind === "tip" || fl.kind === "center") {
-      const v = fl.ref;
-      const t = v === "U" ? uTwist : state.c[{ L: 0, R: 1, B: 2 }[v]];
-      face = applyMapInv(fl.face, v, t);
-    } else {
-      const key = fl.ref.join(",");
-      const slot = FACE_EDGE_SLOT[fl.face][key] ?? FACE_EDGE_SLOT[fl.face][fl.ref.slice().reverse().join(",")];
-      const idx = SLOT_FACES[slot][0] === fl.face ? 0 : 1;
-      const p = state.e[slot * 2], f = state.e[slot * 2 + 1];
-      face = SLOT_FACES[p][idx ^ f];
-    }
-    return shade(FACE_COLOR[face], FACE_SHADE[fl.face]);
-  };
-  return (
-    <svg viewBox="-0.04 0 2.08 1.86" className="pyranet" aria-label="puzzle state">
-      <polygon points={[P_B, P_L, P_R].map((p) => p.join(",")).join(" ")} fill="none" />
-      {FACELETS.map((fl, i) => (
-        <polygon key={i} points={fl.pts.map((p) => p.join(",")).join(" ")}
-          fill={colorOf(fl)} stroke="#ffffff" strokeWidth="0.035" strokeLinejoin="round" />
-      ))}
-    </svg>
-  );
+  const R = typeof window !== "undefined" ? window.OORender : null;
+  const html = R ? R.netSVG({ e: state.e, c: state.c, u: uTwist || 0 }, 240, { cls: "pyrasvg", thumb: true }) : "";
+  return <div className="pyranet" dangerouslySetInnerHTML={{ __html: html }} />;
 }
 
 // ---------- helpers ----------

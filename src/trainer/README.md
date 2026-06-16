@@ -24,7 +24,12 @@ http://localhost:8000/trainer-dev.html). The dev harness uses an isolated
 - Mounts at `#root` (React 18 `createRoot`).
 - Reads/writes its whole state via `window.storage` (async `get`/`set`) under
   the single key `l5e-trainer-v2`.
-- No JS dependency on the site's `OOEngine`/`OORender`.
+- Puzzle diagrams render through the shared site renderer
+  (`js/render.js` -> `window.OORender`, which needs `js/engine.js` ->
+  `window.OOEngine`), so they're identical to the rest of the site. The host
+  page must load `js/engine.js` then `js/render.js` before the bundle. The
+  trainer's state `{e,c}` + `uTwist` maps onto the engine state as
+  `{e, c, u: uTwist}` (engine `G4` === the trainer's twist convention).
 - Styling comes from `css/site.css` + `css/trainer.css` (the same files the live
   page loads); the component carries no inline `<style>`. `trainer-dev.html`
   loads both so the dev build matches the site. New trainer-only classes live in
