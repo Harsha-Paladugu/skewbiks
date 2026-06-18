@@ -8,13 +8,16 @@ Pyraminx.net is a **static, no-build-required website** for no-tips Pyraminx sol
 
 ```bash
 npm install
-npm run build         # build:sheet (compile data → js/sheet.js) + esbuild bundle the trainer → js/trainer.js
+npm run build         # full pipeline: build:trainer (sheet + trainer bundle) then npm run check
+npm run build:trainer # build:sheet, then esbuild-bundle the trainer (node build.mjs) → js/trainer.js
 npm run build:sheet   # compile data/pyraminx_algs.json → js/sheet.js only
-npm run watch:trainer # esbuild watch on src/trainer — does NOT recompile the sheet
+npm run watch:trainer # esbuild watch on src/trainer (node build.mjs --watch) — does NOT recompile the sheet
 npm run check         # verify the shipped js/sheet.js against the engine (alias: npm test)
 
 node tools/compile-sheet.mjs --check   # dry-run compile + report; never writes js/sheet.js
 ```
+
+The esbuild step lives in `build.mjs` at the repo root (entry `src/trainer/index.jsx` → `js/trainer.js`); there is no separate `build:trainer`-only esbuild script — `node build.mjs` is it.
 
 - There is **no unit-test framework**. `npm test` is aliased to `tools/check-sheet.mjs`, which only validates the compiled data sheet. To exercise the engine ad-hoc in Node, replicate what the tools do: `globalThis.window = {}; require('./js/engine.js'); const E = globalThis.window.OOEngine;` (see the "module strategy" gotcha below).
 - **To preview the site locally you must serve over HTTP** (e.g. `npx serve` or `python -m http.server`), not `file://` — `js/account.js` uses dynamic `import()` and the OO/Algorithms pages `fetch` the JSON, both of which need an origin.
@@ -62,4 +65,4 @@ The `js/*.js` files are **classic browser scripts** that attach to `window` (`OO
 
 ### Auth, roles, and the OO census
 
-`account.js` exposes one shared sign-in session site-wide (Firebase Auth persists per-origin), with a `localStorage` "demo mode" fallback when `config.js` has no Firebase config. `config.js` `adminEmails` gates admin/moderator **UI only** — actual write authorization for the OO census (approving solutions, the public done-bitmap, moderator collection) is enforced by **Firestore security rules**, version-controlled in `firestore.rules` (wired by `firebase.json`, deploy with `firebase deploy --only firestore:rules`). Admin in the rules is driven by an `admins/{uid}` collection (bootstrap the first doc via the console). Admin edits on the Algorithms page are a per-browser localStorage draft until **Export JSON** → commit → rebuild; there is no live shared store.
+`account.js` exposes one shared sign-in session site-wide (Firebase Auth persists per-origin), with a `localStorage` "demo mode" fallback when `config.js` has no Firebase config. `config.js` `adminEmails` gates admin/moderator **UI only** — actual write authorization for the OO census (approving solutions, the public done-bitmap, the `moderators`/`moderatorInvites` collections) is enforced by **Firestore security rules**, version-controlled in `firestore.rules` (wired by `firebase.json`, deploy with `firebase deploy --only firestore:rules`). Admin in the rules is driven **solely** by an `admins/{uid}` collection — `adminEmails` is *not* trusted by the rules at all. These two notions of "admin" are decoupled, which is the main gotcha: an email in `adminEmails` makes the client render the Moderation tab, but if that signed-in account has no `admins/{uid}` document the rules deny every query the tab fires (surfaces as "Missing or insufficient permissions"). Bootstrap the first admin by creating `admins/{your-uid}` in the Firebase console (console writes bypass the rules); your uid is shown on the OO **About** page when signed in. See `SETUP.md` for the full setup/bootstrap walkthrough. Admin edits on the Algorithms page are a per-browser localStorage draft until **Export JSON** → commit → rebuild; there is no live shared store.
