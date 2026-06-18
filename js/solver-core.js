@@ -172,8 +172,8 @@ function makeSolverCore(E, dist) {
 
   /* ---------- ergonomics: grip-state DP over renderings ---------- */
   const ERGO_DEFAULTS = {
-    wrist: 1.0, flickU: 1.0, bCold: 2.0, bSetup: 1.0, wide: 1.2,
-    silentReset: 0.6, altBonus: 0.25, uBusy: 0.3, rotCost: 0.1, grace: 2,
+    wrist: 1.0, flickU: 1.0, bCold: 2.0, bSetup: 1.0, wide: 1.75,
+    silentReset: 0.6, altBonus: 0.25, uBusy: 0.3, rotCost: 0, grace: 2,
     displacedTax: 0.12, startDelay: 0.2, bWindow: 2,
   };
   // physical token list (ints 0..7) -> { score, tokens (display strings; Rw/Lw substituted when cheaper) }

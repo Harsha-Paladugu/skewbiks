@@ -36,6 +36,8 @@
 .counttag{font:500 12.5px 'Instrument Sans',sans-serif;color:var(--mut);margin-left:10px}
 .solcard{margin:14px 0;padding:14px 16px}
 .solcard h3{font:600 17px 'Bricolage Grotesque',sans-serif;margin:2px 0 10px}
+.bestcard{border-color:var(--yellow);background:linear-gradient(180deg,rgba(242,207,60,.06),transparent)}
+.bestcard h3{color:var(--yellow)}
 .solverrow{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:8px 0;border-top:1px solid var(--line)}
 .solcell{display:flex;align-items:center;gap:8px;flex:1 1 320px;min-width:0}
 .sol{font:500 14.5px 'Spline Sans Mono',monospace;color:var(--paper);overflow-wrap:anywhere}

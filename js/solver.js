@@ -239,6 +239,21 @@ function slider(label, hint, key, min, max, step) {
       } }), val),
     h('div', { class: 'sliderhint' }, hint));
 }
+// one solution's reconstruction block + method badges + ergonomic score
+function solutionRow(it) {
+  const badges = Object.entries(it.methods).map(([id, m]) =>
+    h('span', { class: 'mbadge', title: 'first step ' + m.v + ' → finish ' + m.fin + (m.cancel ? ', ' + m.cancel + ' canceled' : '') },
+      METHOD_LABEL[id] + ' ' + m.v + '+' + m.fin + (m.cancel ? '−' + m.cancel : '')));
+  const rec = reconstruction(it);
+  const recEls = rec.lines.map(l =>
+    h('div', { class: 'recline' }, h('span', { class: 'recmv mono' }, l.mv), l.cmt ? h('span', { class: 'reccmt' }, l.cmt) : null));
+  recEls.push(h('div', { class: 'reclabel' }, rec.finalLabel));
+  recEls.push(h('div', { class: 'recline final' }, h('code', { class: 'recmv mono sol' }, rec.final)));
+  return h('div', { class: 'solrow solverrow' },
+    h('div', { class: 'reconblock' }, h('div', { class: 'reconlines' }, ...recEls), copyBtn(rec.text)),
+    h('div', { class: 'badgecell' }, badges),
+    h('div', { class: 'solmeta scorechip', title: 'ergonomic cost — lower is nicer' }, String(it.score)));
+}
 function renderInner() {
   const root = $('#app'); root.innerHTML = '';
   root.appendChild(new SiteNavbar({ active: 'solver' }).element());
@@ -306,7 +321,6 @@ function renderInner() {
         slider('hand alternation bonus', 'a discount each time the turning hand switches \u2014 bouncing between R and L flows', 'altBonus', 0, 0.5, 0.05),
         slider('alternate starting grip', 'starting with a thumb on bottom or top instead of home \u2014 unlocks openers like R U R for a small delay', 'startDelay', 0, 1, 0.05),
         slider('U with no free index', 'a U when both hands are busy and neither index is parked at the top', 'uBusy', 0, 1, 0.05),
-        slider('starting rotation', 'a [u] or [l\u2032] applied during inspection, before the first move', 'rotCost', 0, 0.5, 0.05),
         h('button', { class: 'ghost sm', onclick: () => { UI.weights = {}; rescoreAll(); } }, 'reset to defaults'))));
   }
   main.appendChild(drawer);
@@ -340,26 +354,24 @@ function renderInner() {
 
   /* results */
   const lens = [...UI.lengths].sort((a, b) => a - b);
+  // headline: the single most-ergonomic solution across every loaded length
+  let best = null, bestL = null;
+  for (const L of lens) for (const it of (UI.results[L] || [])) if (!best || it.score < best.score) { best = it; bestL = L; }
+  if (best) {
+    const note = bestL === UI.dopt ? 'optimal \u2014 ' + bestL + ' moves'
+      : bestL === UI.dopt + 1 ? 'optimal +1 \u2014 ' + bestL + ' moves'
+      : bestL + ' moves';
+    main.appendChild(h('section', { class: 'card solcard bestcard' },
+      h('h3', null, 'Best solution', h('span', { class: 'counttag' }, note)),
+      solutionRow(best)));
+  }
   for (const L of lens) {
     const items = UI.results[L] || [];
     const sec = h('section', { class: 'card solcard' },
       h('h3', null, L + ' moves' + (L === UI.dopt ? ' \u2014 optimal' : L === UI.dopt + 1 ? ' \u2014 optimal +1' : ''),
         h('span', { class: 'counttag' }, items.length + (items.length === 1 ? ' solution' : ' solutions'))));
     if (!items.length) sec.appendChild(h('p', { class: 'empty' }, 'No method-findable solutions at this length.'));
-    items.slice(0, UI['showAll' + L] ? items.length : 10).forEach(it => {
-      const badges = Object.entries(it.methods).map(([id, m]) =>
-        h('span', { class: 'mbadge', title: 'first step ' + m.v + ' \u2192 finish ' + m.fin + (m.cancel ? ', ' + m.cancel + ' canceled' : '') },
-          METHOD_LABEL[id] + ' ' + m.v + '+' + m.fin + (m.cancel ? '\u2212' + m.cancel : '')));
-      const rec = reconstruction(it);
-      const recEls = rec.lines.map(l =>
-        h('div', { class: 'recline' }, h('span', { class: 'recmv mono' }, l.mv), l.cmt ? h('span', { class: 'reccmt' }, l.cmt) : null));
-      recEls.push(h('div', { class: 'reclabel' }, rec.finalLabel));
-      recEls.push(h('div', { class: 'recline final' }, h('code', { class: 'recmv mono sol' }, rec.final)));
-      sec.appendChild(h('div', { class: 'solrow solverrow' },
-        h('div', { class: 'reconblock' }, h('div', { class: 'reconlines' }, ...recEls), copyBtn(rec.text)),
-        h('div', { class: 'badgecell' }, badges),
-        h('div', { class: 'solmeta scorechip', title: 'ergonomic cost \u2014 lower is nicer' }, String(it.score))));
-    });
+    items.slice(0, UI['showAll' + L] ? items.length : 10).forEach(it => sec.appendChild(solutionRow(it)));
     if (items.length > 10 && !UI['showAll' + L])
       sec.appendChild(h('button', { class: 'ghost sm', onclick: () => { UI['showAll' + L] = true; render(); } }, 'show all ' + items.length));
     main.appendChild(sec);
