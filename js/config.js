@@ -16,5 +16,5 @@ window.OO_CONFIG = {
   // Public Google Form where visitors can apply to become a moderator. Paste
   // the form's share URL here; the OO page links it wherever it invites people
   // to request access. Leave "" to show a "not open yet" note instead of a link.
-  moderatorFormUrl: ""
+  moderatorFormUrl: "https://forms.gle/CNjAEA4RudvTLdmD9"
 };
