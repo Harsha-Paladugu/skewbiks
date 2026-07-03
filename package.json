@@ -1,8 +1,8 @@
 {
-  "name": "pyraminx-net",
+  "name": "skewbiks",
   "private": true,
   "version": "0.0.0",
-  "description": "Pyraminx.net — static site (OO census, solver, V-First trainer, algorithm reference) plus its build. Sources compile to js/sheet.js and js/trainer.js.",
+  "description": "Skewbiks.com — static site (OO census, solver, Skewb trainer, algorithm reference) plus its build. Sources compile to js/sheet.js and js/trainer.js.",
   "scripts": {
     "build:sheet": "node tools/compile-sheet.mjs",
     "build:trainer": "npm run build:sheet && node build.mjs",

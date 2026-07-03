@@ -1,8 +1,16 @@
-# Pyraminx.net
+# Skewbiks.com
 
-A static site for no-tips Pyraminx solving and learning. Five pages share one
-engine and one set of UI layers; the only build step compiles the algorithm data
-and bundles the trainer.
+A static site for Skewb solving and learning — a sister project of
+[pyraminx.net](https://pyraminx.net) (forked from
+[pyraminx-oo](https://github.com/Harsha-Paladugu/pyraminx-oo), kept as the
+`upstream` remote so shared-layer fixes stay cherry-pickable). Five pages share
+one engine and one set of UI layers; the only build step compiles the algorithm
+data and bundles the trainer.
+
+> **Port status:** the site identity is Skewbiks, but the engine/renderer/data
+> underneath are still the Pyraminx originals — they are replaced milestone by
+> milestone (engine → census → Firebase → sheet/algs → trainer → solver).
+> Until then the pages function as a Pyraminx clone.
 
 | Page | File | What it is |
 | --- | --- | --- |

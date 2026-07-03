@@ -58,7 +58,7 @@
         || (window.OOAccount && window.OOAccount.authBox ? window.OOAccount.authBox() : null);
       const main = el('div', { class: 'topbar-main' },
         el('a', { href: 'index.html', class: 'wordmark' },
-          el('span', { class: 'tri', 'aria-hidden': 'true' }), 'PYRAMINX ', el('b', null, '.net')),
+          el('span', { class: 'tri', 'aria-hidden': 'true' }), 'SKEWBIKS ', el('b', null, '.com')),
         el.apply(null, ['nav', { class: 'navtabs', 'aria-label': 'site' }].concat(tabs)),
         right);
       const header = el('header', { class: 'topbar' }, main);

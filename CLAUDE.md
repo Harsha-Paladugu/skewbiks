@@ -2,7 +2,9 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-Pyraminx.net is a **static, no-build-required website** for no-tips Pyraminx solving/learning. Five HTML pages share one engine and a set of UI layers. The only build step compiles the algorithm data and bundles the React trainer; everything else runs as plain `<script>` tags in the browser.
+**FORK STATUS:** this repo is **Skewbiks.com**, a Skewb sister site forked from `pyraminx-oo` (the `upstream` remote). The site identity (titles/meta/wordmark/domain) is Skewbiks, but the engine, renderer, solver, trainer, and alg data are still the **Pyraminx** originals, replaced milestone by milestone: engine+tests → census slice (render/tables/oo) → Firebase → sheet pipeline+algs → trainer → solver → launch. The port strategy: a Skewb `js/engine.js` implements the **same `window.OOEngine` member surface** so the engine-abstracted consumers (`oo.js`, `tables.js`, `solver.js` UI, `tools/lib/bfs-dist.mjs`) port nearly unchanged. Internal names (`OOEngine`, `OO_CONFIG`, `oo.html`, `oo-*`) are deliberately NOT renamed, to keep upstream cherry-picks clean. Everything below this paragraph describes the inherited codebase and remains accurate until the corresponding milestone lands.
+
+Skewbiks.com (like the upstream Pyraminx.net) is a **static, no-build-required website**. Five HTML pages share one engine and a set of UI layers. The only build step compiles the algorithm data and bundles the React trainer; everything else runs as plain `<script>` tags in the browser.
 
 ## Commands
 
