@@ -13,6 +13,7 @@
     "check:fresh": "node tools/check-fresh.mjs",
     "test": "node tools/check-sheet.mjs",
     "test:engine": "node tools/test-engine.mjs",
+    "test:space": "node tools/verify-space.mjs",
     "test:rules": "node test/firestore.rules.test.mjs"
   },
   "dependencies": {

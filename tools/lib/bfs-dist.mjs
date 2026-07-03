@@ -16,7 +16,7 @@ export function buildDist(E) {
     const next = [];
     for (let fi = 0; fi < frontier.length; fi++) {
       const s = E.unidx(frontier[fi]);
-      for (let m = 0; m < 8; m++) {
+      for (let m = 0; m < E.MOVES.length; m++) {
         const t = E.copy(s); E.applyMoveIdx(t, m);
         const ix = E.idx(t);
         if (dist[ix] === -1) { dist[ix] = d + 1; next.push(ix); }
