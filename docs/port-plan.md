@@ -74,11 +74,17 @@ new Firebase project; domain skewbiks.com (GitHub Pages, CNAME).
   formats"; (c) pageMod scramble/solution now display through the WCA/NS switch
   (verification still runs on stored text + notation).
   **Firestore DB creation is console-only on Spark** (API/CLI CreateDatabase requires
-  billing — confirmed against Firebase docs), so USER steps (see SETUP.md §1–3): create
-  the (default) DB (nam5, production mode — the wizard OVERWRITES deployed rules:
-  redeploy after), enable the Google provider, sign in on oo.html, read uid from About,
-  create `admins/{uid}` (console/MCP write bypasses rules). Remaining gate: live
-  submit → moderate → done-bitmap round-trip once the DB exists.
+  billing — confirmed against Firebase docs), so it's a USER step.
+  **DEFERRED 2026-07-05 (user decision): the console steps wait; M5 proceeds first.**
+  Until they're done, oo.html's backend is intentionally dead — census shows 0 solved
+  and sign-in fails. That is NOT a bug; do not debug or revert `js/config.js` to demo
+  mode. Checklist when resuming (details in SETUP.md §1–4): ① create the (default) DB
+  in the console (nam5, production mode); ② REDEPLOY the rules — the create wizard
+  overwrites them (`firebase deploy --only firestore:rules` or Firebase MCP); ③ enable
+  the Google sign-in provider; ④ sign in on oo.html, read the uid from the About tab,
+  create `admins/{uid}` (console/MCP write bypasses rules); ⑤ run the remaining gate:
+  live submit → moderate → done-bitmap round-trip (+ try the admin "Recompute solved
+  bitmap" button once).
 - [ ] **M5 — Sheet pipeline + Algorithms page + alg data v0.** USER authors
   `data/skewb_algs.json` (same schema; subsets proposal: Sarah-Intermediate/Sarah-Advanced/
   NS/FL — user confirms; `direction` = Front/Right/Back/Left y-presentations; `setup` =
@@ -123,7 +129,8 @@ data (done-bitmap, solution docs) are frozen and documented before M4 goes live;
 Items the 2026-07-03 OO code review adds to the milestones above:
 
 - **M4:** carry-items (a)/(b)/(c) all landed (see the M4 status entry above);
-  what remains is the USER console steps + the live round-trip gate.
+  the USER console steps + live round-trip gate are deferred until after M5
+  starts — follow the numbered checklist in the M4 entry when resuming them.
 - **M5:** as specced. Also kills the known-dead algs.js destructuring of dropped
   contract members (`applyMoveK`/`openOfEkey`/`barOfEkey`) and turns
   `npm run build`/`check:fresh` green — after M5, run `check:fresh` before every
