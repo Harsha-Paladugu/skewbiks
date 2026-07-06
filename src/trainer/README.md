@@ -8,7 +8,9 @@ production. Edit here, rebuild, commit the regenerated `js/trainer.js`.
 - `skewb-trainer.jsx` — the trainer React component (UI + persistence): three
   modes — Algorithm drill/recap, Full solve (timer + optimal-line/first-layer
   analysis), Recognition (reveal, then self-grade Recognized/Missed — per-case
-  accuracy is tracked and persisted).
+  accuracy is tracked and persisted; a "3 centers + 2 corners" view toggle
+  masks all but a random partial view, with per-reveal uniqueness reporting
+  and separate accuracy stats).
 - `skewb-core.mjs` — the substrate, no React/DOM: case model over
   `data/skewb_algs.json` (fetched at runtime — NOT bundled), presentation
   geometry (`prependAUF` direction synthesis), masked scrambles, the

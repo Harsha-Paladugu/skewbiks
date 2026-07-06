@@ -39,9 +39,10 @@ const statKey = (uid, d) => uid + SEP + d;
 const knownKey = statKey;
 
 // diagram through the shared renderer (default `oonet` class keeps the site's
-// polygon stroke CSS — an overridden class would drop it)
-function Net({ state, w }) {
-  const html = R && state ? R.netSVG(state, w || 240, { thumb: true }) : "";
+// polygon stroke CSS — an overridden class would drop it). `mask` = display
+// facelet indices to hide (partial recognition).
+function Net({ state, w, mask }) {
+  const html = R && state ? R.netSVG(state, w || 240, { thumb: true, mask }) : "";
   return <div className="skewbnet" dangerouslySetInnerHTML={{ __html: html }} />;
 }
 
@@ -108,7 +109,9 @@ export default function SkewbTrainer() {
   const [elapsed, setElapsed] = useState(0);
   const [last, setLast] = useState(null);
   const [caseStats, setCaseStats] = useState({});
-  const [recogStats, setRecogStats] = useState({}); // uid -> {n, hit, sum(ms), subset, name}
+  const [recogStats, setRecogStats] = useState({});   // full view: uid -> {n, hit, sum(ms), subset, name}
+  const [recog3Stats, setRecog3Stats] = useState({}); // 3+2 partial view, same shape
+  const [recogView, setRecogView] = useState("full"); // 'full' | 'partial'
   const [solveStats, setSolveStats] = useState({ n: 0, best: Infinity, sum: 0 });
   const [session, setSession] = useState([]);
   const [recap, setRecap] = useState(null);
@@ -154,13 +157,17 @@ export default function SkewbTrainer() {
             if (d.solveStats && typeof d.solveStats.n === "number") {
               setSolveStats({ n: d.solveStats.n, best: d.solveStats.best ?? Infinity, sum: d.solveStats.sum || 0 });
             }
-            if (d.recogStats && typeof d.recogStats === "object") {
+            const readGrades = (src, set) => {
+              if (!src || typeof src !== "object") return;
               const rs = {};
-              for (const [k, st] of Object.entries(d.recogStats)) {
+              for (const [k, st] of Object.entries(src)) {
                 if (st && typeof st.n === "number" && typeof st.hit === "number") rs[k] = st;
               }
-              setRecogStats(rs);
-            }
+              set(rs);
+            };
+            readGrades(d.recogStats, setRecogStats);
+            readGrades(d.recog3Stats, setRecog3Stats);
+            if (d.recogView === "full" || d.recogView === "partial") setRecogView(d.recogView);
           }
         }
       } catch (e) { /* first run / foreign blob */ }
@@ -208,10 +215,10 @@ export default function SkewbTrainer() {
     try {
       window.storage.set(STORE_KEY, JSON.stringify({
         subsetSel, groupSel, dirSel, caseOff: [...caseOff], caseKnown: [...caseKnown],
-        scope, mode, setupOpen, caseStats, solveStats, recogStats, ...over,
+        scope, mode, setupOpen, caseStats, solveStats, recogStats, recog3Stats, recogView, ...over,
       })).catch(() => {});
     } catch (e) {}
-  }, [subsetSel, groupSel, dirSel, caseOff, caseKnown, scope, mode, setupOpen, caseStats, solveStats, recogStats]);
+  }, [subsetSel, groupSel, dirSel, caseOff, caseKnown, scope, mode, setupOpen, caseStats, solveStats, recogStats, recog3Stats, recogView]);
   useEffect(() => {
     if (!loadedStore.current) return;
     clearTimeout(saveTimer.current);
@@ -280,23 +287,46 @@ export default function SkewbTrainer() {
     const d = (e2.d + (Math.random() < 0.5 ? 2 : 0)) % 4; // coin-flip y² view (same canon)
     const state = core.stateForDir(e2.c, d);
     if (!state) { setCurrent(null); return; }
+    const cur = { kind: "recog", c: e2.c, d, subset: e2.subset, state };
+    if (recogView === "partial") {
+      cur.view = core.pickView(); // fresh random 3 centers + 2 corners every round
+      cur.mask = core.maskForView(state, cur.view);
+    }
     shownAt.current = performance.now();
-    setCurrent({ kind: "recog", c: e2.c, d, subset: e2.subset, state });
+    setCurrent(cur);
+  }, [entries, recogView]);
+
+  // other enabled cases whose 3+2 view reads EXACTLY the same (pool-wide scan;
+  // states are memoized, so only the first wide scan does real work)
+  const partialMatches = useCallback((shown) => {
+    const target = core.viewSignature(shown.state, shown.view);
+    const names = new Set();
+    for (const en of entries) {
+      if (en.c.uid === shown.c.uid) continue;
+      for (const dd of [en.d, (en.d + 2) % 4]) {
+        const st = core.stateForDir(en.c, dd);
+        if (st && core.viewSignature(st, shown.view) === target) { names.add(en.c.name); break; }
+      }
+    }
+    return [...names];
   }, [entries]);
 
   const revealRecog = useCallback(() => {
     if (!current || current.kind !== "recog" || phase === "stopped") return;
     const ms = performance.now() - shownAt.current;
-    setLast({ kind: "recog", ms, c: current.c, d: current.d, subset: current.subset, state: current.state });
+    const rec = { kind: "recog", ms, c: current.c, d: current.d, subset: current.subset, state: current.state, view: current.view || null };
+    if (current.view) rec.matches = partialMatches(current);
+    setLast(rec);
     setSession((s) => [...s.slice(-49), { kind: "recog", ms }]);
     setPhase("stopped");
-  }, [current, phase]);
+  }, [current, phase, partialMatches]);
 
   // self-grade the revealed case (1 = recognized, 2 = missed); grading advances
   const gradeRecog = useCallback((hit) => {
     if (phase !== "stopped" || !last || last.kind !== "recog") return;
     const { c, ms, subset } = last;
-    setRecogStats((rs) => {
+    const setStats = last.view ? setRecog3Stats : setRecogStats;
+    setStats((rs) => {
       const prev = rs[c.uid] || { n: 0, hit: 0, sum: 0 };
       return { ...rs, [c.uid]: { subset, name: c.name, n: prev.n + 1, hit: prev.hit + (hit ? 1 : 0), sum: prev.sum + ms } };
     });
@@ -416,6 +446,11 @@ export default function SkewbTrainer() {
   useEffect(() => () => cancelAnimationFrame(raf.current), []);
   useEffect(() => { if (phase !== "running") cancelAnimationFrame(raf.current); }, [phase]);
   useEffect(() => { if (mode === "drill" || mode === "recap") lastAlgoMode.current = mode; }, [mode]);
+  // switching Full <-> 3+2 regenerates the recognition problem
+  useEffect(() => {
+    if (ready && mode === "recog") nextRecog();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recogView]);
 
   // ---------- selection toggles ----------
   const toggleSubset = (key) => {
@@ -485,10 +520,11 @@ export default function SkewbTrainer() {
   const resetStats = () => {
     setCaseStats({});
     setRecogStats({});
+    setRecog3Stats({});
     setSolveStats({ n: 0, best: Infinity, sum: 0 });
     setSession([]);
     setLast(null);
-    persist({ caseStats: {}, recogStats: {}, solveStats: { n: 0, best: Infinity, sum: 0 } });
+    persist({ caseStats: {}, recogStats: {}, recog3Stats: {}, solveStats: { n: 0, best: Infinity, sum: 0 } });
   };
 
   // ---------- alg list for a shown (case, dir) ----------
@@ -614,6 +650,16 @@ export default function SkewbTrainer() {
         {/* ---------- setup (Algorithm + Recognition share the pool) ---------- */}
         {(mode === "drill" || mode === "recap" || mode === "recog") && (
           <>
+            {mode === "recog" && (
+              <div className="chips" style={{ alignItems: "center" }}>
+                <span className="grouplabel">view</span>
+                <div className="modes">
+                  {[["full", "Full"], ["partial", "3 centers + 2 corners"]].map(([v, l]) => (
+                    <button key={v} className={"mode" + (recogView === v ? " on" : "")} onClick={() => setRecogView(v)}>{l}</button>
+                  ))}
+                </div>
+              </div>
+            )}
             {(mode === "drill" || mode === "recap") && (
               <div className="chips" style={{ alignItems: "center" }}>
                 <div className="modes">
@@ -714,8 +760,14 @@ export default function SkewbTrainer() {
         ) : current.kind === "recog" ? (
           <div className="stage" style={{ cursor: "default" }}>
             <div className="stagegrid recogstage">
-              <Net state={current.state} w={300} />
+              <Net state={phase === "stopped" && last ? last.state : current.state} w={300}
+                mask={phase === "stopped" ? null : current.mask} />
             </div>
+            {current.view && phase !== "stopped" && (
+              <div className="hint" style={{ marginTop: 6 }}>
+                showing {current.view.centers.join(" ")} centers + {current.view.corners.join(" ")} corners
+              </div>
+            )}
             {phase === "stopped" && last ? (
               <>
                 <div className="reveal">
@@ -726,6 +778,13 @@ export default function SkewbTrainer() {
                   <span className="bartag">{DIRS[last.d]} view</span>
                   <span className="mono">{fmt(last.ms)}s</span>
                 </div>
+                {last.view && (
+                  <div className="hint" style={{ marginTop: 6 }}>
+                    {last.matches && last.matches.length
+                      ? "⚠ this 3+2 view also matches: " + last.matches.slice(0, 4).join(", ") + (last.matches.length > 4 ? ` (+${last.matches.length - 4} more)` : "")
+                      : "this 3+2 view pins the case uniquely in your pool"}
+                  </div>
+                )}
                 <div className="graderow">
                   <button className="gradebtn hit" onClick={() => gradeRecog(true)}>Recognized ✓ (1)</button>
                   <button className="gradebtn miss" onClick={() => gradeRecog(false)}>Missed ✗ (2)</button>
@@ -841,10 +900,10 @@ export default function SkewbTrainer() {
               </>
             ) : mode === "recog" ? (
               <>
-                <h3>Recognition</h3>
+                <h3>Recognition{recogView === "partial" ? " · 3 centers + 2 corners" : ""}</h3>
                 {(() => {
-                  const rows = Object.entries(recogStats);
-                  if (!rows.length) return <div className="empty">Reveal, then grade yourself (1 recognized · 2 missed) — accuracy lands here per case.</div>;
+                  const rows = Object.entries(recogView === "partial" ? recog3Stats : recogStats);
+                  if (!rows.length) return <div className="empty">Reveal, then grade yourself (1 recognized · 2 missed) — accuracy lands here per case{recogView === "partial" ? ", tracked separately from full-view grades" : ""}.</div>;
                   const tot = rows.reduce((a, [, s]) => ({ n: a.n + s.n, hit: a.hit + s.hit, sum: a.sum + s.sum }), { n: 0, hit: 0, sum: 0 });
                   const missed = rows.filter(([, s]) => s.hit < s.n)
                     .sort((a, b) => (b[1].n - b[1].hit) - (a[1].n - a[1].hit));

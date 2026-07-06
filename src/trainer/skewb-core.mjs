@@ -359,11 +359,84 @@ export function createCore(E) {
     return null;
   }
 
+  // ---------- partial (3-centers + 2-corners) recognition ----------
+  // A case's non-FL pieces: the 5 centers off the solved layer (FL = D in every
+  // case state; y presentations keep it there) and the 4 upper corner slots.
+  // Machine-checked premise (2026-07-06): WITHIN a corner group (Pi/Peanut/…,
+  // TCLL sign+corner — context a solver knows from building FL), any 3 centers
+  // + 2 corners identify the case ≥99.9% uniquely (worst collision: one pair);
+  // ACROSS groups it is far weaker (TCLL ~1%), so reveals list pool matches.
+  const RECOG_CENTERS = ['U', 'R', 'F', 'L', 'B'];
+  const RECOG_CORNERS = ['UBR', 'UFL', 'UFR', 'UBL'];
+  const AXIS_SLOT = { UBR: 0, UFL: 1 };
+  const FREE_SLOT = { UFR: 0, UBL: 1 };
+
+  function pickView() {
+    const pick = (arr, k) => {
+      const pool = arr.slice(), out = [];
+      for (let i = 0; i < k; i++) out.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
+      return out.sort();
+    };
+    return { centers: pick(RECOG_CENTERS, 3), corners: pick(RECOG_CORNERS, 2) };
+  }
+
+  // everything the chosen pieces' stickers say about the state — two states
+  // look identical through the view iff their signatures match
+  function viewSignature(st, view) {
+    const parts = [];
+    for (const f of view.centers) parts.push('c' + f + st.ctr[FIDX[f]]);
+    for (const c of view.corners) {
+      if (c in AXIS_SLOT) parts.push('x' + c + st.fx[AXIS_SLOT[c]]);
+      else parts.push('f' + c + st.fp[FREE_SLOT[c]] + '.' + st.fo[FREE_SLOT[c]]);
+    }
+    return parts.join('|');
+  }
+
+  // Diagrams render through toFixedFacelets, which re-anchors the display by
+  // rotating 240°×fx[UFL] about the UFL–DBR diagonal — so a piece's RAW facelet
+  // positions and its DISPLAYED positions differ when fx[UFL] ≠ 0. Rebuild that
+  // rotation from exported members (mirrors engine.js ROT240_UFL: the deep-cut
+  // identity  written-B = native-UFL-move · rotation) and map positions through
+  // it; test-trainer pins this against toFixedFacelets on random states.
+  const _rot240 = (() => {
+    const inv = new Array(30);
+    for (let i = 0; i < 30; i++) inv[E.moveFaceletPerm.UFL[i]] = i;
+    const r = new Array(30);
+    for (let i = 0; i < 30; i++) r[i] = inv[E.WCA_FACELET_MOVES.B[i]];
+    return r;
+  })();
+  // rawPos -> displayed facelet index, for this state's display anchoring
+  function displayPosMap(st) {
+    const k = ((st.fx[AXIS_SLOT.UFL] % 3) + 3) % 3;
+    let Rk = Array.from({ length: 30 }, (_, i) => i);   // display[i] = raw[Rk[i]]
+    for (let t = 0; t < k; t++) Rk = _rot240.map((ri) => Rk[ri]);
+    const dmap = new Array(30);
+    for (let i = 0; i < 30; i++) dmap[Rk[i]] = i;
+    return dmap;
+  }
+
+  // display-space indices to HIDE so only the view's pieces stay visible
+  function maskForView(st, view) {
+    const visible = new Set();
+    for (const f of view.centers) visible.add(FIDX[f] * 5);
+    for (const c of view.corners) {
+      for (const g of E.FACES) {
+        const ix = E.STICKER_POS[g].indexOf(c);
+        if (ix >= 0) visible.add(FIDX[g] * 5 + 1 + ix);
+      }
+    }
+    const dmap = displayPosMap(st);
+    const mask = new Set();
+    for (let p = 0; p < 30; p++) if (!visible.has(p)) mask.add(dmap[p]);
+    return mask;
+  }
+
   return {
     buildModel, navSorted, casePres, stateForDir, algsForDir, firstMoveOf,
     maskedScramble, randomReachable, descend, descentLines, toWCA,
     layerSolved, anyLayerSolved, layerSeedSpec, flSeedIndices, buildFLDist,
     analyze, lineLayerSplit,
-    MASK_MIN, MASK_MAX,
+    pickView, viewSignature, maskForView, displayPosMap,
+    MASK_MIN, MASK_MAX, RECOG_CENTERS, RECOG_CORNERS,
   };
 }

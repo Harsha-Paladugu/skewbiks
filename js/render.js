@@ -90,7 +90,10 @@ function rotateView(M, dx, dy) {
 
 // render all visible faces of one view; cull + depth-sort whole faces (the cube
 // is convex, so faces never interleave). Returns svg polygon markup.
-function renderView(fl, M, ox, oy) {
+// `mask` (optional Set of DISPLAY facelet indices) hides those stickers behind a
+// neutral fill — used by the trainer's partial-recognition diagrams.
+const MASKED_FILL = '#252c39';
+function renderView(fl, M, ox, oy, mask) {
   const vis = [];
   for (const f of FACES) {
     const n = applyM(M, FNORM[f]);
@@ -103,7 +106,8 @@ function renderView(fl, M, ox, oy) {
     for (const s of STICKERS) {
       if (s.face !== fc.f) continue;
       const pp = s.pts.map(p => { const r = applyM(M, p); return [(r[0] + ox), (-r[1] + oy)]; });
-      polys.push(`<polygon points="${pp.map(p => p[0].toFixed(3) + ',' + p[1].toFixed(3)).join(' ')}" fill="${shade(COLORS[FACES[fl[s.fi]]], bright)}"/>`);
+      const fill = mask && mask.has(s.fi) ? MASKED_FILL : shade(COLORS[FACES[fl[s.fi]]], bright);
+      polys.push(`<polygon points="${pp.map(p => p[0].toFixed(3) + ',' + p[1].toFixed(3)).join(' ')}" fill="${fill}"/>`);
     }
   }
   return polys.join('');
@@ -116,11 +120,12 @@ const M_BACK  = viewMatrix(Math.PI + Math.PI / 4, -ISO); // antipode: D, B, R
 function netSVG(state, width, opts) {
   const o = opts || {};
   const fl = E.toFixedFacelets(state);
+  const mask = o.mask ? (o.mask instanceof Set ? o.mask : new Set(o.mask)) : null;
   const caps = o.thumb ? '' :
     `<text x="0" y="2.05" class="dcap" font-size="0.24" fill="#9fadc4" text-anchor="middle">front</text>` +
     `<text x="3.7" y="2.05" class="dcap" font-size="0.24" fill="#9fadc4" text-anchor="middle">back</text>`;
   return `<svg viewBox="-1.8 -1.8 7.3 4" width="${width}" height="${Math.round(width * 4 / 7.3)}" class="${o.cls || 'oonet'}" role="img" aria-label="puzzle state, front and back views">` +
-    renderView(fl, M_FRONT, 0, 0) + renderView(fl, M_BACK, 3.7, 0) + caps + '</svg>';
+    renderView(fl, M_FRONT, 0, 0, mask) + renderView(fl, M_BACK, 3.7, 0, mask) + caps + '</svg>';
 }
 
 /* ---- 3D view: one orbitable cube ---- */

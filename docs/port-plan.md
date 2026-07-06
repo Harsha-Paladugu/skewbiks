@@ -205,7 +205,18 @@ new Firebase project; domain skewbiks.com (GitHub Pages, CNAME).
   you grade yourself — Recognized ✓ (key 1) / Missed ✗ (key 2), space still skips
   ungraded; grades persist per case (`recogStats` in the same storage blob), the
   stats card shows graded/recognized/accuracy/mean-reveal plus a worst-cases grid,
-  and session pills carry ✓/✗. WCA/NS toolbar switch (shared `skewbiks-notation`,
+  and session pills carry ✓/✗. Second follow-up (USER request): a **3-centers +
+  2-corners partial view** toggle — each round masks all but 3 random non-FL
+  centers + 2 random upper corners (netSVG gained an `opts.mask` of display
+  facelet indices; the piece→display mapping goes through the fixed-frame
+  rotation, rebuilt in skewb-core from the exported `moveFaceletPerm`/
+  `WCA_FACELET_MOVES` and pinned against `toFixedFacelets` by test). Machine
+  check of the premise (test-asserted): WITHIN a corner group (context a solver
+  has from building FL) a 3+2 view identifies the case ≥99.9% uniquely (worst
+  collision anywhere: one pair); ACROSS groups it collapses (TCLL ~1% — case
+  identity lives in the masked FL residue), so each reveal reports whether the
+  shown view was unique in the enabled pool and lists any colliding cases.
+  Partial grades are tracked separately (`recog3Stats`). Substrate tests 29. WCA/NS toolbar switch (shared `skewbiks-notation`,
   default ns). `R.COLORS` un-exported (M6 carry-item resolved). New
   `npm run test:trainer` = 23 substrate tests (model counts vs the JSON, presentation
   geometry incl. the p/p+2 canon fold, masked-scramble correctness + window, layer
