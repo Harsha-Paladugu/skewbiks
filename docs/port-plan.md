@@ -201,7 +201,11 @@ new Firebase project; domain skewbiks.com (GitHub Pages, CNAME).
   open, cached under the trainer-owned IndexedDB key `trainer-fldist-v1`.
   ③ **Recognition** — reveal-style self-graded (USER decision, supersedes the old
   "multiple choice" sketch) at a coin-flipped y² view (the y²-sym image IS the d+2
-  presentation — engine-tested). WCA/NS toolbar switch (shared `skewbiks-notation`,
+  presentation — engine-tested). Same-day follow-up (USER request): after the reveal
+  you grade yourself — Recognized ✓ (key 1) / Missed ✗ (key 2), space still skips
+  ungraded; grades persist per case (`recogStats` in the same storage blob), the
+  stats card shows graded/recognized/accuracy/mean-reveal plus a worst-cases grid,
+  and session pills carry ✓/✗. WCA/NS toolbar switch (shared `skewbiks-notation`,
   default ns). `R.COLORS` un-exported (M6 carry-item resolved). New
   `npm run test:trainer` = 23 substrate tests (model counts vs the JSON, presentation
   geometry incl. the p/p+2 canon fold, masked-scramble correctness + window, layer

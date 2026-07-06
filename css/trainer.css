@@ -170,6 +170,15 @@ td .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; ma
 .ratetag.poor { color: var(--dim); }
 .warntag { color: var(--yellow); font-size: 12px; }
 
+/* recognition self-grading */
+.graderow { display: flex; justify-content: center; align-items: center; gap: 10px; margin-top: 12px; }
+.gradebtn { border-radius: 9px; padding: .55em 1.2em; font: 600 14px var(--bodyf);
+  cursor: pointer; border: 1px solid var(--line2); background: var(--panel2); color: var(--txt); }
+.gradebtn.hit { border-color: var(--green); color: var(--green); }
+.gradebtn.hit:hover { background: rgba(63,191,82,.12); }
+.gradebtn.miss { border-color: rgba(232,71,61,.6); color: var(--red); }
+.gradebtn.miss:hover { background: rgba(232,71,61,.12); }
+
 /* collapsible subset groups in Setup */
 .setgrp { margin-bottom: 8px; }
 .setgrp > summary { list-style: none; cursor: pointer; display: inline-flex; align-items: center; gap: 8px;

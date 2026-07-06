@@ -108,6 +108,7 @@ export default function SkewbTrainer() {
   const [elapsed, setElapsed] = useState(0);
   const [last, setLast] = useState(null);
   const [caseStats, setCaseStats] = useState({});
+  const [recogStats, setRecogStats] = useState({}); // uid -> {n, hit, sum(ms), subset, name}
   const [solveStats, setSolveStats] = useState({ n: 0, best: Infinity, sum: 0 });
   const [session, setSession] = useState([]);
   const [recap, setRecap] = useState(null);
@@ -152,6 +153,13 @@ export default function SkewbTrainer() {
             }
             if (d.solveStats && typeof d.solveStats.n === "number") {
               setSolveStats({ n: d.solveStats.n, best: d.solveStats.best ?? Infinity, sum: d.solveStats.sum || 0 });
+            }
+            if (d.recogStats && typeof d.recogStats === "object") {
+              const rs = {};
+              for (const [k, st] of Object.entries(d.recogStats)) {
+                if (st && typeof st.n === "number" && typeof st.hit === "number") rs[k] = st;
+              }
+              setRecogStats(rs);
             }
           }
         }
@@ -200,10 +208,10 @@ export default function SkewbTrainer() {
     try {
       window.storage.set(STORE_KEY, JSON.stringify({
         subsetSel, groupSel, dirSel, caseOff: [...caseOff], caseKnown: [...caseKnown],
-        scope, mode, setupOpen, caseStats, solveStats, ...over,
+        scope, mode, setupOpen, caseStats, solveStats, recogStats, ...over,
       })).catch(() => {});
     } catch (e) {}
-  }, [subsetSel, groupSel, dirSel, caseOff, caseKnown, scope, mode, setupOpen, caseStats, solveStats]);
+  }, [subsetSel, groupSel, dirSel, caseOff, caseKnown, scope, mode, setupOpen, caseStats, solveStats, recogStats]);
   useEffect(() => {
     if (!loadedStore.current) return;
     clearTimeout(saveTimer.current);
@@ -283,6 +291,22 @@ export default function SkewbTrainer() {
     setSession((s) => [...s.slice(-49), { kind: "recog", ms }]);
     setPhase("stopped");
   }, [current, phase]);
+
+  // self-grade the revealed case (1 = recognized, 2 = missed); grading advances
+  const gradeRecog = useCallback((hit) => {
+    if (phase !== "stopped" || !last || last.kind !== "recog") return;
+    const { c, ms, subset } = last;
+    setRecogStats((rs) => {
+      const prev = rs[c.uid] || { n: 0, hit: 0, sum: 0 };
+      return { ...rs, [c.uid]: { subset, name: c.name, n: prev.n + 1, hit: prev.hit + (hit ? 1 : 0), sum: prev.sum + ms } };
+    });
+    setSession((s) => { // stamp the verdict onto the reveal's pill
+      const n = s.slice();
+      for (let i = n.length - 1; i >= 0; i--) if (n[i].kind === "recog") { n[i] = { ...n[i], hit }; break; }
+      return n;
+    });
+    nextRecog();
+  }, [phase, last, nextRecog]);
 
   const advance = useCallback(() => {
     if (mode === "solve") { nextSolve(); return; }
@@ -368,7 +392,11 @@ export default function SkewbTrainer() {
       if (mode === "recog") {
         if (e.code === "Space" || e.code === "Enter" || e.code === "NumpadEnter") {
           e.preventDefault();
-          if (phase === "stopped") nextRecog(); else revealRecog();
+          if (phase === "stopped") nextRecog(); else revealRecog(); // space on a reveal = skip ungraded
+        } else if (phase === "stopped" && (e.code === "Digit1" || e.code === "Numpad1")) {
+          e.preventDefault(); gradeRecog(true);
+        } else if (phase === "stopped" && (e.code === "Digit2" || e.code === "Numpad2")) {
+          e.preventDefault(); gradeRecog(false);
         }
         return;
       }
@@ -383,7 +411,7 @@ export default function SkewbTrainer() {
     };
     window.addEventListener("keydown", down);
     return () => window.removeEventListener("keydown", down);
-  }, [phase, trigger, stopTimer, mode, nextRecog, revealRecog, last, caseBrowser]);
+  }, [phase, trigger, stopTimer, mode, nextRecog, revealRecog, gradeRecog, last, caseBrowser]);
 
   useEffect(() => () => cancelAnimationFrame(raf.current), []);
   useEffect(() => { if (phase !== "running") cancelAnimationFrame(raf.current); }, [phase]);
@@ -456,10 +484,11 @@ export default function SkewbTrainer() {
 
   const resetStats = () => {
     setCaseStats({});
+    setRecogStats({});
     setSolveStats({ n: 0, best: Infinity, sum: 0 });
     setSession([]);
     setLast(null);
-    persist({ caseStats: {}, solveStats: { n: 0, best: Infinity, sum: 0 } });
+    persist({ caseStats: {}, recogStats: {}, solveStats: { n: 0, best: Infinity, sum: 0 } });
   };
 
   // ---------- alg list for a shown (case, dir) ----------
@@ -696,7 +725,11 @@ export default function SkewbTrainer() {
                   <span className="casename">{last.c.name}</span>
                   <span className="bartag">{DIRS[last.d]} view</span>
                   <span className="mono">{fmt(last.ms)}s</span>
-                  <button className="restart" style={{ marginTop: 0 }} onClick={nextRecog}>Next</button>
+                </div>
+                <div className="graderow">
+                  <button className="gradebtn hit" onClick={() => gradeRecog(true)}>Recognized ✓ (1)</button>
+                  <button className="gradebtn miss" onClick={() => gradeRecog(false)}>Missed ✗ (2)</button>
+                  <button className="preset" onClick={nextRecog}>skip (space)</button>
                 </div>
                 <AlgList c={last.c} d={last.d} />
               </>
@@ -809,7 +842,45 @@ export default function SkewbTrainer() {
             ) : mode === "recog" ? (
               <>
                 <h3>Recognition</h3>
-                <div className="empty">Look at the diagram, name the case, reveal to check. Recognition time shows per round.</div>
+                {(() => {
+                  const rows = Object.entries(recogStats);
+                  if (!rows.length) return <div className="empty">Reveal, then grade yourself (1 recognized · 2 missed) — accuracy lands here per case.</div>;
+                  const tot = rows.reduce((a, [, s]) => ({ n: a.n + s.n, hit: a.hit + s.hit, sum: a.sum + s.sum }), { n: 0, hit: 0, sum: 0 });
+                  const missed = rows.filter(([, s]) => s.hit < s.n)
+                    .sort((a, b) => (b[1].n - b[1].hit) - (a[1].n - a[1].hit));
+                  return (
+                    <>
+                      <table>
+                        <thead><tr><th>Graded</th><th>Recognized</th><th>Accuracy</th><th>Mean reveal</th></tr></thead>
+                        <tbody>
+                          <tr>
+                            <td className="mono">{tot.n}</td>
+                            <td className="mono">{tot.hit}</td>
+                            <td className="mono">{Math.round((tot.hit / tot.n) * 100)}%</td>
+                            <td className="mono">{fmt(tot.sum / tot.n)}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                      {missed.length > 0 && (
+                        <div className="casegrid">
+                          {missed.slice(0, 24).map(([uid, s]) => {
+                            const c = uidIndex.get(uid);
+                            return (
+                              <div key={uid} className="casecard">
+                                {c ? <Net state={core.stateForDir(c, 0)} w={120} /> : null}
+                                <div className="casenums">
+                                  <span className="mono" style={{ color: "var(--red)" }}>{s.n - s.hit}✗</span>
+                                  <span className="casesub">{s.name}</span>
+                                  <span className="casesub">{s.hit}/{s.n} · {fmt(s.sum / s.n)}s</span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
               </>
             ) : (
               <>
@@ -871,8 +942,9 @@ export default function SkewbTrainer() {
               <div className="times">
                 {session.slice(-24).map((t, i) => (
                   <span key={i} className="timepill"
-                    style={{ "--cdot": t.kind === "drill" ? subColor(t.subset) : "var(--accent)" }}>
-                    {fmt(t.ms)}
+                    style={{ "--cdot": t.kind === "drill" ? subColor(t.subset)
+                      : t.hit === true ? "var(--green)" : t.hit === false ? "var(--red)" : "var(--accent)" }}>
+                    {t.hit === true ? "✓ " : t.hit === false ? "✗ " : ""}{fmt(t.ms)}
                   </span>
                 ))}
               </div>
