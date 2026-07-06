@@ -136,6 +136,9 @@
           "firstMove": "b'",
           "alg": "x z' r' R r B' R r R B' r",
           "rating": "neutral"
+        },
+        {
+          "alg": "x z r B' r z R r' R r"
         }
       ]
     },
@@ -211,6 +214,9 @@
           "firstMove": null,
           "alg": "x z2 R' r b' r' R' b' B R' z2 r' R'",
           "rating": "neutral"
+        },
+        {
+          "alg": "x z B' R B' r' R r' b' B R'"
         }
       ]
     },

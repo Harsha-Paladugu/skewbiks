@@ -44,10 +44,12 @@ t('model: empty subsets skipped, imported three present', () => {
   const keys = model.subsets.map((s) => s.key);
   return keys.length === 3 && keys.includes('NS') && keys.includes('EG2') && keys.includes('TCLL');
 });
-t('model: 1,349 cases / 3,114 algs, matching the JSON', () => {
+t('model: keeps every case and alg the JSON carries', () => {
+  const jsonCases = Object.values(JSON_DATA.subsets).reduce((a, s) => a + s.cases.length, 0);
+  const jsonAlgs = Object.values(JSON_DATA.subsets).reduce((a, s) => a + s.cases.reduce((b, c) => b + c.algs.length, 0), 0);
   const cases = model.subsets.reduce((a, s) => a + s.cases.length, 0);
   const algs = model.subsets.reduce((a, s) => a + s.cases.reduce((b, c) => b + c.algs.length, 0), 0);
-  return cases === 1349 && algs === 3114;
+  return jsonCases > 0 && cases === jsonCases && algs === jsonAlgs;
 });
 t('model: nav groups partition every subset (no strays)', () =>
   model.subsets.every((s) =>

@@ -14,7 +14,7 @@
     "status": "TCLL / EG2 / NS imported from data/sources/*.json (NS-notation sources converted to WCA; originals kept per-alg as `ns`; sheet rotation letters x/y/z = engine z'/y'/x — see the importer header). FL / Sarah-Intermediate / Sarah-Advanced await authoring.",
     "counts": {
       "cases": 1349,
-      "algs": 3114
+      "algs": 3116
     }
   },
   "subsets": {
@@ -10478,6 +10478,12 @@
             },
             {
               "direction": "Front",
+              "alg": "B L' B R L' B R",
+              "ns": "x z r B' r z R r' R r",
+              "firstMove": "R"
+            },
+            {
+              "direction": "Front",
               "alg": "B L' B R L' B R'",
               "ns": "x z r B' r B R' B R'",
               "rating": "best",
@@ -10572,6 +10578,12 @@
               "alg": "U' R U' R' U' B' U B' R' B'",
               "ns": "x z2 R' r b' r' R' b' B R' z2 r' R'",
               "rating": "neutral",
+              "firstMove": "b'"
+            },
+            {
+              "direction": "Front",
+              "alg": "U' R L' U' R L' U' R L'",
+              "ns": "x z B' R B' r' R r' b' B R'",
               "firstMove": "b'"
             }
           ],
