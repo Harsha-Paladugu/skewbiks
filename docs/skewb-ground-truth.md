@@ -163,6 +163,67 @@ Rotations `x y z` are 90° whole-cube rotations (order 4); cubing.js maps x→Rv
 No wide moves exist (opposite-corner move ≡ inverse move + rotation). Community algs freely
 mix rotations into solutions.
 
+**Engine rotation-token direction (machine-verified 2026-07-07):** the engine's `x y z`
+tokens each denote the PHYSICAL INVERSE of the WCA/cubing.js rotation of the same name
+(engine x = physical x′, engine y = physical y′, engine z = physical z′). Verified by a
+facelet-conjugation probe (`engine "rot T rot'"` vs the physical rotation applied to the
+TNoodle-validated fixed-frame facelet moves, compared up to a whole-cube rotation; T long
+and asymmetric, exactly one of the six 90° hypotheses matches per letter). Every earlier
+oracle — the y² canon fold, the NS identities `x2 B x2`/`y2 B y2`/`z2 B z2` — uses 180°
+rotations and is direction-blind, which is why this was invisible until the solver started
+printing quarter rotations. All engine surfaces are mutually consistent (parseAlg,
+nativeToWCA, prependAUF y-chips, the solver's mid-solve rotations), but a WCA-literate
+human reading a printed engine `x` will physically rotate the wrong way. Consequently the
+sheet mapping (§ data/sources/README.md) composes to: sheet x/y/z = engine z′/y′/x =
+**physical z/y/x′** — the sheets' own `y` IS the physical WCA y. Flipping the engine to
+the WCA convention is a pending decision: rotations never touch states so no tables/keys
+change, but typed solutions containing rotations re-verify differently, the importer's
+rotation-mapping constants must flip in lockstep (re-import `data/skewb_algs.json`), and
+the site's Right/Left presentation labels swap which physical view they denote.
+
+**Physical execution vs the engine's hold reading (2026-07-07, machine-verified against
+three junction rotations the USER executed physically — sheet letters `y′ z`, `y x′`,
+`y2 z`):** the correct model of how a human executes a text is: move letters twist the
+corner at a FIXED hand position; rotation letters turn the cube about fixed spatial axes,
+in reading order. Machine-discriminated: this model solves **3,082/3,082** imported texts
+from their engine identity pre-states (a grip-relative rotation reading solves 641) — so
+ENGINE evaluation from IDENTITY starts is physically faithful, walks included. Behind a
+rotation prefix it is NOT: the engine's frame-walk reading of "hold + text" makes claims
+that are false as physical statements (USER junction 2: the engine-derived setup rotation
+was a quarter turn off the physically-working `y x′`). Physically the match relation is
+rotation-CLOSED conjugation — a junction J is solved by body Φ from setup rotation R iff
+Φ(R(J)) is solved in ANY orientation. A second subtlety: the DISPLAYED first step
+substitutes WCA `B` / NS `b` for native-UFL-axis moves, and executing the substituted
+letter leaves the cube walk-rotated relative to the native bookkeeping — the junction the
+human holds is W(J), and the printed rotation must be derived from W(J), not J (USER
+junction 1: `y′ z` from W(J) vs the spurious `x2` from J). The solver (js/solver-core.js)
+therefore runs all hold/rotation logic in a PHYSICAL facelet model anchored to the
+TNoodle-validated perms: per text it indexes Φ⁻¹ of the 24 solved orientations, matches
+junctions under 24 rotations of W(J), prints the nicest matching R spelled in SHEET
+letters (sheet x/y/z = physical z/y/x′ — the letters this community reads; engine letters
+are INTERNAL and never displayed), and re-proves every displayed line by a facelet check.
+Coverage under the physical model is count-identical to the old engine-frame index
+(2,733 / 10,392 / 3,180) — the match relation agreed, the printed rotations did not.
+Flip note: the community sheets are NOT WCA (x/z differ), and the USER demonstrably thinks
+in SHEET letters — flipping the engine to plain WCA would still leave x/z sight-read wrong;
+pick the flip target deliberately. Mid-alg rotation letters in displayed alg bodies
+(Algorithms page, trainer, solver bodies) and the trainer's y-chips retain the sight-read
+hazard until that decision.
+
+Related (found by the M7 solver, 2026-07-07): **the frame machinery is not
+conjugation-equivariant** — evaluating the same token text behind different rotation
+prefixes does NOT produce rotation-conjugate resolutions, because a letter's resolution
+branch (direct axis move vs free-corner move + frame walk) depends on the current frame's
+tetrad parity, and walks compose on the LEFT (globally) while rotation tokens compose on
+the RIGHT (locally). Under the engine's reading the set of states a text solves "from some
+hold" is a property of that text (≤ 24 states, not a view-orbit). **Resolved same day
+(see the physical-execution block above): physical execution does NOT agree with the
+engine behind rotation prefixes** — physically the solvable set IS rotation-closed, and
+the solver no longer uses the engine's hold reading at all (physical facelet model; the
+~12 % of fl/tcll junction states without a sheet finish are a genuine property of the
+sheets, not an artifact). The engine's frame machinery remains corpus-faithful for
+identity-start evaluation, which is all the rest of the site uses it for.
+
 ### NS ("Rubik'skewb") notation
 
 The system the Sarah's-method / NS 2.0 alg sheets use. Primary source:

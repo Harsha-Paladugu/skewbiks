@@ -276,16 +276,159 @@ new Firebase project; domain skewbiks.com (GitHub Pages, CNAME).
     "Back view" tag shows only on flips), and the core's 4-presentation
     keying machinery (`casePres`/`stateForDir`/`prependAUF`) stays — it backs
     recognition, alg y-chips, and the one-look reverse lookup.
-- [ ] **M7 — Solver.** New `METHOD_DEFS`/`METHOD_PRIORITY` in solver-core (proposal to
-  confirm with user: `fl` first layer cap 7, `flm1` FL−1 cap 5, `psfl` pseudo-FL; targets
-  from `enumFreeSlots` pools; frames go 12→24? NO — frames stay the engine's `makeFrames`;
-  buildRotations enumerates the 12 rotation frames as before). Rebuild `ergoScore` for
-  Skewb grips: keep frame machinery/alternation/min-per-state; replace thumb-dial state
-  with `(frameIdx, lastHand, sameAxisRun)`; add rotation-conjugate renders (write `B` as
-  `y'+R`-family). solver.js deltas: VLABEL, reconstruction wording, `SLIDER_KEYS →
-  ['uCost','bCost','sameHand','altBonus','rotCost']`, delete `migrateWeights`. Solver ships
-  before alg data (`caseNameOf` degrades to null). Gate: `tools/solver-lab.mjs` re-fixtured;
-  every emitted solution machine-checked; sliders persist via OOAccount.
+- [x] **M7 — Solver** (2026-07-07). **Movecount-only scope per USER decision**
+  ("simple movecount metrics; fingertrick metrics later once I speak with top
+  solvers; solutions go through the layer — or applicable first step — then an
+  algorithm; rotations allowed mid-solve; organize by movecount"), superseding
+  the old fl/flm1/psfl proposal. `js/solver-core.js` rewritten:
+  `METHOD_DEFS = fl / tcll / eg2` — the first steps of the ACTUAL imported
+  sheets, machine-probed from `data/skewb_algs.json`: NS cases are D-layer
+  states (fl = a layer on any face; 540/face, 3,110 distinct, max dist 6),
+  TCLL cases are layer-with-exactly-ONE-free-corner-twisted (2,160/face,
+  11,964, max 6), EG2 cases are layer-with-the-free-pairs-swapped (540/face,
+  3,204, max 7); membership verified for 134/135 + 1,076/1,080 + 136/136
+  cases (5 known sheet outliers). Caps default 7/6/7. The two-phase DFS search
+  ports from upstream, but **buildRotations is DELETED** — searching the 12
+  rotation framings adds no physical solutions on a Skewb (A4 conjugation
+  permutes the native moves and the any-face targets bijectively), so the
+  search runs once in the identity frame; `ergoScore` is DELETED (score =
+  executed movecount; buckets sort by shortest first step). New `methodView`
+  builds the staged reconstruction "first step | rotation bringing the layer
+  to the bottom | algorithm" via a generalized WCA emitter that mirrors
+  applyParsed exactly (incl. the odd tetrad-swapping frames a mid-solve x/z
+  quarter creates) + an init-derived `ROT_TO_D` table; case names come from a
+  lazy canon index over BOTH y-quarter canons of every compiled-sheet case
+  (`CNAME` alone covers only authored canons — 1,333/1,351 cases partial);
+  naming coverage 535/540 fl, 2,160/2,160 tcll, 539/540 eg2, and 100 % of
+  finishes named in a 200-scramble scan. The core re-verifies every emitted
+  line and drops (+counts) any failure. solver.js deltas: sliders/weights/
+  offsets/`migrateWeights` deleted; prefs = methods/caps/slack/maxCancel
+  (shape-validated; saved via OOAccount); WCA/NS toolbar switch (shared
+  `skewbiks-notation`; scramble parsed in the active notation); opening
+  search window dopt..dopt+3 (method solutions cluster above the optimum);
+  movecount chips dopt..12, ungated (worst observed search 169 ms). Engine:
+  `composeSym` un-exported (`faceCompose`/`FACE_ID` are now used by the new
+  core; `optimalSolution`/`symFromFacePerm` stay for tests). Gates: NEW
+  `npm run test:solver` (14 tests — pinned target counts, sheet-case
+  membership, reduction/emitter equivalence, naming coverage, fixture
+  soundness with every solution AND method view machine-verified, plus 50
+  constructed P·A decompositions found = completeness spot-check);
+  `tools/solver-lab.mjs` re-fixtured (`--scan 200`: 0 verify failures, 0
+  truncations, best solution at optimal for 175/200); engine 48/48, trainer
+  32/32, build + `check:fresh` green; headless-Edge E2E 10/10 incl. an
+  in-browser proof that every displayed final solution solves the typed
+  scramble.
+  - **Rotation-convention finding (machine-verified 2026-07-07, USER decision
+    pending):** the engine's `x/y/z` tokens are each the PHYSICAL INVERSE of
+    the WCA/cubing.js rotation of the same name — every prior oracle used
+    180° rotations, which are direction-blind. See ground-truth §"Notation
+    notes" for the full statement and the cost of flipping it. The solver
+    prints engine-convention tokens (they parse + verify site-wide, matching
+    the trainer's y-chips); revisit after the convention decision.
+  - **2026-07-07 follow-up (USER report: "algorithms executing from the wrong
+    angles — they should be done exactly how it is listed on the algorithm
+    page"). Finishes are now THE SHEET ALGORITHMS VERBATIM**, superseding the
+    machine-optimal finishes (and with them: slack/maxCancel options, junction
+    cancellation, the movecount length-chips, the canon-name index, and the
+    compiled-sheet dependency — solver.html no longer loads js/sheet.js;
+    like algs.html and the trainer it fetches `data/skewb_algs.json` at boot,
+    leaving js/sheet.js + classmap.json as build-gate artifacts with no page
+    consumer). Core rework: every alg's authored `ns` text is indexed by the
+    exact states it solves from each of the 24 whole-cube holds (fast
+    frame-table evaluator over the 24-orientation group — 233 ms vs 11.8 s
+    through applyParsed; equivalence covered by the per-item verification);
+    a junction then matches by plain stateKey lookup, and the display
+    rotation = the matched hold right-divided by the first step's end frame
+    — EXACT, not guessed, because WHICH hold executes a text is a property
+    of the text (959 algs embed their own setup rotations) and the frame
+    machinery is deliberately not conjugation-equivariant for free-corner
+    letters. Movecount = first step + the verbatim text's own move tokens
+    (the sheets sometimes write R R where the conversion says R2); 34
+    slash-alternate texts don't parse and are skipped (their cases carry
+    other algs). UI: one search per Solve (no length chips; buckets ascend,
+    3 shown + expander), verbatim alg line with case name + rating, full
+    solution line in NS. Verbatim-finish coverage over the method spaces:
+    2,733/3,110 fl, 10,392/11,964 tcll, 3,180/3,204 eg2 (the gaps trace to
+    the same rotation-semantics question as the x/y/z inversion — states
+    view-equivalent physically but not reachable by any "rotation + text"
+    under the engine's reading; every DISPLAYED line still machine-verifies,
+    and in a 200-scramble scan every scramble had solutions — best within
+    optimal+2 for 99 %, 595,554 solutions verified, 0 failures, worst search
+    176 ms). test:solver reworked to 13 tests (index re-verification through
+    the real applyParsed, pinned coverage, verbatim-text membership,
+    constructed-decomposition completeness); lab reworked accordingly.
+    Engine follow-up queued: physically validate the rotation-token
+    composition rules (walk left-compose vs token right-compose) together
+    with the x/y/z direction decision.
+  - **2026-07-07 revision (USER: the alg's leading rotations "should not be
+    listed — it should be the rotations needed to get to the position the
+    first move starts at"): leading rotation tokens are folded out of the
+    indexed/displayed text** (`foldLeadRots` in solver-core `algIndex`), so
+    the one printed setup rotation now lands directly on the alg's first
+    turn; mid-alg rotations stay verbatim, and from the first turn on the
+    text is still exactly the Algorithms page's. The fold is exact — a
+    leading rotation only shifts WHICH of the 24 holds matches, and all 24
+    are swept — so the index (45,057 states) and the coverage numbers above
+    are bit-identical; probe: 3,074 of 3,082 parseable texts folded, 8 had
+    no leading rotations, 0 fell back (the raw-text cut is only taken when
+    the remainder re-parses to exactly the un-cut token tail). test:solver
+    oracles updated: displayed text must lead with a turn and token-match a
+    sheet body after its leading rotations.
+  - **Same-day rework (USER reports: printed setup rotations physically
+    wrong — "y x" should be "y' z"; then, after a per-token respelling fix,
+    two more junctions showed "y x'" and "y2 z" where the derivation gave
+    different orientations): the solver's hold/rotation logic now runs in a
+    PHYSICAL facelet model** (js/solver-core.js), because the engine's
+    frame-walk reading of texts is physically faithful only from IDENTITY
+    starts — machine-discriminated 2026-07-07: fixed-hand-positions +
+    fixed-axis rotations solves 3,082/3,082 imported texts from their
+    identity pre-states (grip-relative reading: 641), while behind a
+    rotation prefix the engine's hold claims are physically false (the
+    USER's junctions are the counterexamples). Design: per folded body Φ the
+    index stores Φ⁻¹ of the 24 solved orientations (leading-rotation fold =
+    exactly a SOLVED24 permutation — still free); a junction matches iff
+    some rotation R of the junction the HUMAN holds hits the set (the human
+    junction is W(J): the displayed first step substitutes WCA B / NS b for
+    native-UFL moves, leaving the cube walk-rotated — a second bug the
+    engine junction masked); the printed rotation is the nicest matching R
+    spelled in SHEET letters (sheet x/y/z = physical z/y/x′); every
+    displayed line carries a facelet proof (methodView ok). All perms are
+    anchored to the TNoodle-validated engine facelet moves (construction
+    self-checks throw). Index: 65,640 pre-states / 73,968 entries, ~200 ms
+    build (the old hold-evaluator is deleted); coverage counts unchanged
+    (2,733/10,392/3,180 — the match relation agreed with the old index; the
+    rotations did not); search ~207 ms on the KPW fixture, all solutions
+    physically verified. Post-review hardening from the fold's multi-agent
+    review (4 confirmed minor): grouping-character texts never fold
+    (paren-mangling class killed; zero shipped texts affected), CLAUDE.md
+    data-flow "verbatim" sentence reconciled. test:solver reworked to 19
+    tests: physical corpus anchor (all 3,082), emitPhysPerm ≡ displayed-text
+    execution + walk factorization, index/coverage pins, and the three
+    USER-executed junction rotations pinned end-to-end through search().
+    Ground truth §Notation notes rewritten accordingly (engine hold reading
+    physically falsified; the ~12 % coverage gap is a property of the
+    sheets, not an artifact).
+  - **Same-day post-review fixes (multi-agent review, 14 confirmed findings,
+    1 refuted):** solver-core — `canonIndex` seeds ALL authored canons from
+    `CNAME` before indexing y-quarter neighbours (3 cases previously displayed
+    a foreign case's name; new test pins `canonIndex == CNAME` over all 1,402
+    authored canons), `methodView` no longer prints a "bring the layer to the
+    bottom" rotation when the first step already solved the cube, and
+    `search()` sanitizes non-finite slack/maxCancel/caps (NaN silently
+    disabled every pruning comparison — a trailing `--cancel` flag stack-
+    overflowed the lab); solver.js — the notation toggle CONVERTS the
+    scramble text (the token sets overlap across WCA/NS with different
+    corners, so a re-Solve after toggling silently solved a different
+    scramble), truncation is tracked per length (chips read "≥N found",
+    cards "(incomplete)"), and renders no longer wipe an in-progress scramble
+    draft (async loadPrefs could land mid-typing); solver-lab — numeric flag
+    validation, `Math.imul` LCG (the float product collapsed the seed space
+    to 16k values), correct `optimal+k` bucket tags, and `--scan` now exits
+    non-zero on truncation/no-solution at default tuning, not just verify
+    failures. test:solver 14 → 15 tests (pinned ROT_TO_D + frame identity,
+    canonIndex/CNAME regression, fin=0 rotation guard). Re-verified end to
+    end: all runners green, `--scan 200` (147/147 finishes named, 0
+    failures, worst 160 ms), build + `check:fresh` green, E2E 10/10.
 - [ ] **M8 — Launch polish.** Home copy/cards final, Skewb logo + og image + touch icon
   (headless-Edge render recipe), robots/sitemap already point at skewbiks.com, SETUP/README
   final, pre-announce checklist (deployed-rules diff, Firebase authorized domains incl.
@@ -310,9 +453,9 @@ Items the 2026-07-03 OO code review adds to the milestones above:
   `check:fresh` before every commit.
 - **M6:** LANDED — `R.COLORS` un-exported (nothing imports it; the trainer's
   subset chips use their own hex palette, not the face colors).
-- **M7:** as specced. Engine exports `composeSym`/`FACE_ID`/`faceCompose`/
-  `optimalSolution` exist for Pyraminx-era solver-core + tests only — if the M7
-  rewrite doesn't use them, un-export.
+- **M7:** LANDED (see the status entry) — `composeSym` un-exported; `FACE_ID`/
+  `faceCompose` are used by the new solver-core, `optimalSolution`/
+  `symFromFacePerm` by the test runners, so they stay.
 - **M8:** as specced.
 
 Known-acceptable, deliberately NOT fixed (don't re-litigate without new evidence):

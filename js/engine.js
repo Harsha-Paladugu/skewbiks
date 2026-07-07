@@ -706,7 +706,7 @@ function algSolvesKey(algStr, key) {
 module.exports = {
   FACES, S4, G4, OPP, MOVES, NSLOTS,
   solved, copy, eq, move, applyMoveIdx, idx, unidx,
-  buildSyms, symFromFacePerm, applySym, composeSym, makeCanon, makeMirrorCanon, makeFullCanon,
+  buildSyms, symFromFacePerm, applySym, makeCanon, makeMirrorCanon, makeFullCanon,
   parseAlg, countMoves, applyParsed, makeFrames, mirrorAlg,
   optimalSolution, optimalScramble, invertAlg, faceCompose, FACE_ID,
   // notation systems: WCA (default) and NS ("Rubik'skewb", the Sarah/NS sheets)
