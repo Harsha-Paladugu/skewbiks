@@ -10,11 +10,15 @@ node tools/import-method-sheets.mjs   # regenerates the TCLL / EG2 / NS subsets
 npm run build                         # recompile sheet + trainer, restamp
 ```
 
-| file | method | source |
-|---|---|---|
-| `tcll.json` | TCLL | "Full TCLL - Max Parris" |
-| `eg2.json` | EG2 | EG2.xlsx |
-| `ns.json` | NS | Full NS + Alts Sheet (2026_ns_sheet.xlsx) |
+| file | method | source | credit |
+|---|---|---|---|
+| `tcll.json` | TCLL | ["Full TCLL - Max Parris"](https://docs.google.com/spreadsheets/d/1BFAjvkX8dGVfQKNLfbCeyjeffoErMtefIDg1-9rZvvM/edit?usp=sharing) | Max Parris |
+| `eg2.json` | EG2 | [EG2.xlsx](https://docs.google.com/spreadsheets/d/1wlNP1AxmvjXFfgI5Rckrpf9004byL5UKILvYCS4dFvc/edit?usp=sharing) | (no author named in the sheet) |
+| `ns.json` | NS | [Full NS + Alts Sheet (2026_ns_sheet.xlsx)](https://docs.google.com/spreadsheets/d/1H7wURtjJLzNBOaV3_EvvW0sgrek5ASDPTM4M8lciGWY/edit?usp=sharing) | Jacob Levie, Alex Rosado, Ariel Benchetrit, Max Parris, Vojtěch Grohmann, Michał Denkiewicz, Carter Kucala |
+
+Each source file's top-level `credit` block (`title`, `url`, `by`) is carried into
+`data/skewb_algs.json` by the importer and shown as the attribution line at the
+top of that subset on the Algorithms page.
 
 ## Notation (important)
 

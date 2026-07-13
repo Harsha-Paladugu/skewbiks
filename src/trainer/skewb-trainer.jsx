@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { createCore, DIRS, Y_PREFIX, SEP, rateRank } from "./skewb-core.mjs";
+import { createCore, DIRS, Y_PREFIX, SEP, rateRank, SOL_EXAMPLES } from "./skewb-core.mjs";
 
 // ============================================================
 // Skewbiks trainer — four tools over the imported method sheets
@@ -241,6 +241,23 @@ export default function SkewbTrainer() {
     clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(persist, 400);
   }, [persist]);
+  // the debounce loses the last ≤400ms of changes if the tab closes/reloads
+  // right after an action — flush the pending save the moment the page hides
+  // (the host bridge sends cloud writes immediately once hidden)
+  useEffect(() => {
+    const flush = () => {
+      if (!loadedStore.current) return;
+      clearTimeout(saveTimer.current);
+      persist();
+    };
+    const onVis = () => { if (document.visibilityState === "hidden") flush(); };
+    window.addEventListener("pagehide", flush);
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      window.removeEventListener("pagehide", flush);
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, [persist]);
 
   // ---------- the practice pool: enabled cases (authored presentation only) ----------
   const entries = useMemo(() => {
@@ -293,13 +310,20 @@ export default function SkewbTrainer() {
     setCurrent(scramble ? { kind: "solve", state: st, scramble } : null);
   }, []);
 
-  // the centers quiz answers with the case's center-case field (NS
-  // `centerPattern`, EG2/TCLL `center`); cases without one can't be quizzed
-  const answerOf = (c) => c.centerPattern || c.center || null;
-  const quizEntries = useMemo(() => entries.filter((en) => answerOf(en.c)), [entries]);
+  // the centers quiz answers with the case's center-case name, resolved from
+  // the centers the diagram actually shows (core.quizAnswer — the sheets'
+  // vocabulary, machine-normalized where a sheet's own labels are degenerate);
+  // cases without an answer can't be quizzed
+  const quizEntries = useMemo(() => {
+    if (!ready) return [];
+    const subs = new Map(model().subsets.map((s) => [s.key, s]));
+    return entries
+      .map((en) => ({ ...en, answer: core.quizAnswer(subs.get(en.subset), en.c) }))
+      .filter((en) => en.answer);
+  }, [ready, entries]);
   const quizOptions = useMemo(() => {
     const seen = new Set(), out = [];
-    for (const en of quizEntries) { const a = answerOf(en.c); if (!seen.has(a)) { seen.add(a); out.push(a); } }
+    for (const en of quizEntries) if (!seen.has(en.answer)) { seen.add(en.answer); out.push(en.answer); }
     return out;
   }, [quizEntries]);
 
@@ -308,31 +332,31 @@ export default function SkewbTrainer() {
     const pool = recogView === "centers" ? quizEntries : entries;
     if (!pool.length || (recogView === "centers" && centerSel.length !== 3)) { setCurrent(null); return; }
     const e2 = pool[Math.floor(Math.random() * pool.length)];
-    const d = Math.random() < 0.5 ? 2 : 0; // coin-flip y² view (same canon)
+    // full view coin-flips the y² look (same canon, tagged on reveal); the
+    // quiz pins the anchor view — its answers name the exact shown centers
+    const d = recogView === "centers" ? 0 : Math.random() < 0.5 ? 2 : 0;
     const state = core.stateForDir(e2.c, d);
     if (!state) { setCurrent(null); return; }
     const cur = { kind: "recog", c: e2.c, d, subset: e2.subset, state };
     if (recogView === "centers") {
       cur.view = { centers: centerSel.slice().sort(), corners: cornersOn ? core.pickCorners() : [], fl: true };
       cur.mask = core.maskForView(state, cur.view);
-      cur.answerKey = answerOf(e2.c);
+      cur.answerKey = e2.answer;
     }
     shownAt.current = performance.now();
     setCurrent(cur);
   }, [entries, quizEntries, recogView, centerSel, cornersOn]);
 
   // other center-case answers the shown view is ALSO consistent with (pool-wide
-  // scan; states are memoized, so only the first wide scan does real work)
+  // scan; states are memoized, so only the first wide scan does real work —
+  // the quiz always shows the anchor view, so only d = 0 can collide)
   const quizAmbiguity = useCallback((shown) => {
     const target = core.viewSignature(shown.state, shown.view);
     const others = new Set();
     for (const en of quizEntries) {
-      const a = answerOf(en.c);
-      if (a === shown.answerKey) continue;
-      for (const dd of [0, 2]) {
-        const st = core.stateForDir(en.c, dd);
-        if (st && core.viewSignature(st, shown.view) === target) { others.add(a); break; }
-      }
+      if (en.answer === shown.answerKey) continue;
+      const st = core.stateForDir(en.c, 0);
+      if (st && core.viewSignature(st, shown.view) === target) others.add(en.answer);
     }
     return [...others];
   }, [quizEntries]);
@@ -381,15 +405,17 @@ export default function SkewbTrainer() {
   }, [phase, last, nextRecog]);
 
   // ---------- one-look ----------
-  // The fixed layer solution, parsed once. A = the state the sequence produces
-  // from solved; every problem is a preimage X = β(Y) with β realizing A⁻¹, so
-  // running the solution from X lands exactly on the drawn D-layer-solved Y.
+  // The fixed layer solution, parsed once. phi = its PHYSICAL facelet perm —
+  // every problem X is chosen so the cube actually IN HAND after the scramble
+  // text, run through the solution, shows the drawn D-solved Y layer-down
+  // (core.preimageOfLayer; the physical story lives in skewb-core).
   const solPlan = useMemo(() => {
     if (!onelookSol) return null;
     const p = E.parseAlg(E.preprocessAlg(onelookSol.raw), onelookSol.nota === "ns" ? "ns" : undefined);
     if (!p || !p.some((t) => t.kind === "move")) return null;
-    const A = E.applyParsed(p, E.solved(), null, E.makeFrames(null));
-    return { raw: onelookSol.raw, nota: onelookSol.nota, A, moves: E.countMoves(p) };
+    const pp = core.physPermOf(p);
+    if (!pp.phi) return null;
+    return { raw: onelookSol.raw, nota: onelookSol.nota, phi: pp.phi, moves: E.countMoves(p) };
   }, [onelookSol]);
 
   const commitSolution = () => {
@@ -399,6 +425,9 @@ export default function SkewbTrainer() {
     const p = E.parseAlg(E.preprocessAlg(raw), nota === "ns" ? "ns" : undefined);
     if (!p) { setSolError("doesn’t parse as " + nota.toUpperCase() + " — check the notation switch"); return; }
     if (!p.some((t) => t.kind === "move")) { setSolError("needs at least one move"); return; }
+    const pp = core.physPermOf(p);
+    if (pp.err === "rot") { setSolError("whole-cube rotations aren’t supported here — moves only"); return; }
+    if (pp.err === "ufl") { setSolError("F, R, L and f move the fixed white/red/green corner — write the layer with r, b, B, l (right-side letters)"); return; }
     setSolError("");
     setOnelookSol({ raw, nota });
   };
@@ -433,7 +462,7 @@ export default function SkewbTrainer() {
         if (st) cur = { kind: "onelook", sub: "len", n: onelookLen, state: st };
       } else if (solPlan) {
         const Y = core.randomDLayerState();
-        const st = core.preimageOfLayer(solPlan.A, Y, distRef.current);
+        const st = core.preimageOfLayer(solPlan.phi, Y, distRef.current);
         if (st) cur = { kind: "onelook", sub: "sol", sol: { raw: solPlan.raw, nota: solPlan.nota }, state: st, end: Y };
       }
       if (cur) {
@@ -692,6 +721,11 @@ export default function SkewbTrainer() {
     const sorted = times.slice().sort((a, b) => a - b);
     return (sorted[1] + sorted[2] + sorted[3]) / 3;
   }, [session]);
+  // the Session card shows only the current trainer's times (entries are
+  // tagged by kind; drill and recap both record "drill" — same activity)
+  const sessionShown = useMemo(
+    () => session.filter((t) => t.kind === (mode === "recap" ? "drill" : mode)),
+    [session, mode]);
 
   const resetStats = () => {
     setCaseStats({});
@@ -842,7 +876,7 @@ export default function SkewbTrainer() {
             ) : (
               <>
                 <input className="solinput mono" value={solDraft}
-                  placeholder={nota === "ns" ? "layer solution, e.g. R' b R" : "layer solution, e.g. R' B L"}
+                  placeholder={"layer solution, e.g. " + SOL_EXAMPLES[nota === "ns" ? "ns" : "wca"]}
                   onChange={(e) => { setSolDraft(e.target.value); setSolError(""); }}
                   onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); commitSolution(); e.target.blur(); } }}
                   aria-label="layer solution" />
@@ -985,6 +1019,10 @@ export default function SkewbTrainer() {
                 ? (scope === "learning" ? "Nothing left to learn in this selection — every enabled case is marked known."
                   : scope === "known" ? "No cases marked known yet in this selection."
                   : "Pick at least one subset and group in Setup to start.")
+                : mode === "recog" && recogView === "centers" && centerSel.length !== 3
+                ? "Pick 3 centers above to start the quiz."
+                : mode === "recog" && recogView === "centers" && quizEntries.length === 0
+                ? "The selected cases have no center-case classification — pick EG2, NS or TCLL cases for this quiz."
                 : "Couldn’t generate a scramble — try other cases."}
             </div>
           </div>
@@ -1100,8 +1138,8 @@ export default function SkewbTrainer() {
                   <>
                     <div className="hint" style={{ marginTop: 14 }}>after your layer:</div>
                     <div className="stagegrid recogstage">
-                      {/* pinned frame keeps the solved layer visually on the bottom
-                          (the WCA-hold re-anchor rotates it away when UFL is twisted) */}
+                      {/* end states have fx[UFL] = 0 (core.randomDLayerState), so the
+                          pinned frame IS the cube in hand, solved layer on the bottom */}
                       <Net state={last.end} w={240} pinned />
                     </div>
                     <div className="reveal">
@@ -1385,11 +1423,11 @@ export default function SkewbTrainer() {
           </div>
           <div className="card">
             <h3>Session</h3>
-            {session.length === 0 ? (
+            {sessionShown.length === 0 ? (
               <div className="empty">Recent times show up here.</div>
             ) : (
               <div className="times">
-                {session.slice(-24).map((t, i) => (
+                {sessionShown.slice(-24).map((t, i) => (
                   <span key={i} className="timepill"
                     style={{ "--cdot": t.kind === "drill" ? subColor(t.subset)
                       : t.dk ? "var(--dim)" : t.hit === true ? "var(--green)" : t.hit === false ? "var(--red)" : "var(--accent)" }}>

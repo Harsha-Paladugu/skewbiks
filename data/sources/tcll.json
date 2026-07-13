@@ -1,6 +1,11 @@
 {
   "method": "TCLL",
   "source": "Full TCLL - Max Parris",
+  "credit": {
+    "title": "Full TCLL",
+    "url": "https://docs.google.com/spreadsheets/d/1BFAjvkX8dGVfQKNLfbCeyjeffoErMtefIDg1-9rZvvM/edit?usp=sharing",
+    "by": ["Max Parris"]
+  },
   "ratings": [
     "best",
     "neutral"

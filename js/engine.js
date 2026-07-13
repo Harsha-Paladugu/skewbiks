@@ -818,7 +818,7 @@ module.exports = {
   // skewb-specific: geometry + facelet model (renderer, tools, tests)
   AXIS, FREE, CFACES, STICKER_POS, CPOS, WCA_CORNER, CLASS,
   toFacelets, toFixedFacelets, fromFacelets, solvedFacelets, moveFaceletPerm: MFP, applyFaceletPerm,
-  WCA_FACELET_MOVES, nativeToWCA,
+  WCA_FACELET_MOVES, ROT240_UFL, nativeToWCA,
 };
 
 window.OOEngine=module.exports;})();

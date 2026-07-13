@@ -53,7 +53,15 @@ function setNota(v) {
   // DIFFERENT scramble (most WCA strings are also valid NS with other corners)
   if (UI.scramble) {
     const conv = E.convertAlg(UI.scramble, NOTA, next);
-    if (conv != null) UI.scramble = conv;
+    if (conv != null) {
+      // keep the visible input in step: if it still shows the solved scramble
+      // (no draft in progress), swap the converted text in before render() —
+      // otherwise the draft-carry sees input ≠ UI.scramble and restores the
+      // stale letters, and a re-Solve would silently solve a different position
+      const inp = $('#scr-in');
+      if (inp && inp.value.trim() === UI.scramble.trim()) inp.value = conv;
+      UI.scramble = conv;
+    }
   }
   NOTA = next;
   try { localStorage.setItem(NOTA_KEY, NOTA); } catch (e) {}

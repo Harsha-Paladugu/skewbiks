@@ -1,6 +1,11 @@
 {
   "method": "NS",
   "source": "Full NS + Alts Sheet (2026_ns_sheet.xlsx)",
+  "credit": {
+    "title": "2026 NS",
+    "url": "https://docs.google.com/spreadsheets/d/1H7wURtjJLzNBOaV3_EvvW0sgrek5ASDPTM4M8lciGWY/edit?usp=sharing",
+    "by": ["Jacob Levie", "Alex Rosado", "Ariel Benchetrit", "Max Parris", "Vojtěch Grohmann", "Michał Denkiewicz", "Carter Kucala"]
+  },
   "firstMoveOrder": [
     "r",
     "r'",

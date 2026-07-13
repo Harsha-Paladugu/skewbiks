@@ -20,7 +20,7 @@ globalThis.window = {};
 require(path.join(ROOT, 'js', 'engine.js'));
 const E = globalThis.window.OOEngine;
 
-const { createCore, DIRS, Y_PREFIX } = await import('../src/trainer/skewb-core.mjs');
+const { createCore, DIRS, Y_PREFIX, SOL_EXAMPLES } = await import('../src/trainer/skewb-core.mjs');
 const core = createCore(E);
 
 let passed = 0, failed = 0;
@@ -197,36 +197,69 @@ t('one-look: randomAtFLDist lands on the exact FL distance for every n 0..6', ()
   }
   return true;
 });
-t('one-look: randomDLayerState samples reachable D-layer-solved states', () => {
-  for (let i = 0; i < 20; i++) {
+// The one-look 'sol' claims are PHYSICAL ("run your sequence on the cube in
+// hand, the layer lands on the bottom"), so they are asserted against the
+// solver-core facelet oracle (TNoodle-anchored physPerm/physPermNS +
+// heldFacelets — the cube in hand after a scramble TEXT differs from raw
+// toFacelets by the text's absorbed free-corner rotations). USER-falsified
+// 2026-07-13: the old engine-frame preimage made the solution "U" need a
+// physical L with the layer landing off-bottom whenever the draw carried a
+// UFL walk digit — these tests fail against that construction.
+require(path.join(ROOT, 'js', 'solver-core.js'));
+const SC = globalThis.window.OOSolverCore.makeSolverCore(E, dist, JSON_DATA);
+const parseWca = (s) => E.parseAlg(E.preprocessAlg(s));
+const parseNs = (s) => E.parseAlg(E.preprocessAlg(s), 'ns');
+const flKey = (fl) => fl.join('');
+
+t('one-look: randomDLayerState samples reachable D-solved states, UFL pristine', () => {
+  const ufl = E.AXIS.indexOf('UFL');
+  for (let i = 0; i < 40; i++) {
     const st = core.randomDLayerState();
-    if (!core.layerSolved(st, 'D') || dist[E.idx(st)] < 0) return false;
+    if (!core.layerSolved(st, 'D') || dist[E.idx(st)] < 0 || st.fx[ufl] !== 0) return false;
   }
   return true;
 });
-t('one-look: running the sequence from the preimage lands EXACTLY on Y (incl. B + rotations)', () => {
-  const SEQS = ["R U' B", "y R L' B U", "B L B' U'", "x2 R U R'", "R'", "L U L' U' B", "R R'"];
-  for (const s of SEQS) {
-    const A = applyWca(s, E.solved());
-    for (let i = 0; i < 3; i++) {
+t('one-look: physPermOf rejects rotation tokens and UFL-side NS letters', () => {
+  const CASES = [
+    ['wca', 'x U', 'rot'], ['wca', 'U y2', 'rot'],
+    ['ns', 'F', 'ufl'], ['ns', 'R', 'ufl'], ['ns', 'L', 'ufl'], ['ns', "f' b", 'ufl'],
+  ];
+  return CASES.every(([nota, s, err]) => {
+    const p = nota === 'ns' ? parseNs(s) : parseWca(s);
+    return p && core.physPermOf(p).err === err;
+  });
+});
+t('one-look: the SOL_EXAMPLES placeholders pass their own input guard', () => {
+  return ['ns', 'wca'].every((nota) => {
+    const p = nota === 'ns' ? parseNs(SOL_EXAMPLES[nota]) : parseWca(SOL_EXAMPLES[nota]);
+    return p && p.some((tk) => tk.kind === 'move') && !core.physPermOf(p).err;
+  });
+});
+t('one-look: PHYSICAL execution from the held scramble lands raw(Y), D layer on the bottom', () => {
+  const SEQS = [
+    ['wca', 'U'], ['wca', 'B'], ['wca', "B' U"], ['wca', "U B U'"], ['wca', 'R U B'],
+    ['ns', 'b'], ['ns', 'r'], ['ns', 'B r b'], ['ns', "b' r B'"],
+  ];
+  for (const [nota, s] of SEQS) {
+    const parsed = nota === 'ns' ? parseNs(s) : parseWca(s);
+    const { phi } = core.physPermOf(parsed);
+    if (!phi) return false;
+    const oracle = nota === 'ns' ? SC.physPermNS(parsed) : SC.physPerm(parsed);
+    if (flKey(phi) !== flKey(oracle)) return false; // trainer perm == solver-core reading
+    for (let i = 0; i < 12; i++) {
       const Y = core.randomDLayerState();
-      const X = core.preimageOfLayer(A, Y, dist);
+      const X = core.preimageOfLayer(phi, Y, dist);
       if (!X) return false;
-      const Z = applyWca(s, E.copy(X));
-      if (!E.eq(Z, Y) || !core.layerSolved(Z, 'D')) return false;
-      const scr = core.maskedScramble(X, dist); // the shown scramble reproduces X ('' ok iff X = solved)
-      if (scr == null || !E.eq(applyWca(scr || "R R'", E.solved()), X)) return false;
+      const scr = core.maskedScramble(X, dist);
+      if (scr == null) return false;
+      const held = SC.heldFacelets(parseWca(scr || "R R'")); // '' only if X = solved
+      if (flKey(held) !== flKey(E.toFixedFacelets(X))) return false; // held-frame bridge
+      const end = SC.pApply(held, oracle);
+      if (flKey(end) !== flKey(E.toFacelets(Y))) return false; // exactly raw(Y) in hand
+      if (!core.layerSolved(E.fromFacelets(end), 'D')) return false;
     }
   }
   return true;
-});
-t('one-look: preimage honors NS-notation sequences', () => {
-  const raw = "R' b R F"; // NS letters (upper = U-layer corners, lower = D-layer)
-  const applyNs = (a, st) => E.applyParsed(E.parseAlg(E.preprocessAlg(a), 'ns'), st, null, E.makeFrames());
-  const A = applyNs(raw, E.solved());
-  const Y = core.randomDLayerState();
-  const X = core.preimageOfLayer(A, Y, dist);
-  return !!X && E.eq(applyNs(raw, E.copy(X)), Y);
 });
 
 // ---------------- analysis ----------------
@@ -342,6 +375,64 @@ t('centers quiz premise: NS center case is determined by FL + any 3 centers', ()
   }
   console.log('    (worst 3-center combo: ' + (100 * worst).toFixed(1) + '% of views pattern-pure)');
   return worst >= 0.5; // informational floor — ambiguity is reported in-app per round
+});
+
+// ---------------- center-case quiz answers ----------------
+// (machine-verified 2026-07-13: the sheets' center labels are a pure function
+// of the center perm for EG2 and NS — after splitting NS's lumped H-or-Z rows
+// — but NOT for TCLL, whose labels also encode twist/pseudo context)
+const subEG2 = model.subsets.find((s) => s.key === 'EG2');
+const subNS = model.subsets.find((s) => s.key === 'NS');
+const subTC = model.subsets.find((s) => s.key === 'TCLL');
+const byName = (sub, name) => sub.cases.find((c) => c.name === name);
+
+t('quiz answers: EG2 + NS vocabularies are sig-pure over all 60 center perms', () => {
+  const e = core.centerVocab(subEG2), n = core.centerVocab(subNS);
+  return e.pure && e.map.size === 60 && n.pure && n.map.size === 60;
+});
+t('quiz answers: EG2 answers are the authored labels with the U family folded to one U', () =>
+  subEG2.cases.filter((c) => c.corner !== 'L5C')
+    .every((c) => core.quizAnswer(subEG2, c) === (/^U[12][lfrb]?$/.test(c.center) ? 'U' : c.center)));
+t('quiz answers: EG2 vocabulary is 17 options with a single U', () => {
+  const opts = new Set(core.centerVocab(subEG2).map.values());
+  const us = [...opts].filter((l) => l.includes('U'));
+  return opts.size === 17 && us.length === 1 && us[0] === 'U';
+});
+t('quiz answers: EG2 L5C resolves into the Pi/Peanut vocabulary (no new options)', () => {
+  const l5c = subEG2.cases.filter((c) => c.corner === 'L5C');
+  const vocab = new Set(subEG2.cases.filter((c) => c.corner !== 'L5C').map((c) => core.quizAnswer(subEG2, c)));
+  if (!l5c.every((c) => vocab.has(core.quizAnswer(subEG2, c)))) return false;
+  const want = { 'L5C U1': 'U', 'L5C U2': 'U', 'L5C Z': 'Z1', 'L5C H': 'skip', 'L5C O1': 'O1' };
+  return Object.entries(want).every(([n, a]) => core.quizAnswer(subEG2, byName(subEG2, n)) === a);
+});
+t('quiz answers: NS lumped H-or-Z rows split into H Perm / Z Perm / Solved', () => {
+  const want = {
+    'Pi H or Z Perm 16': 'H Perm', 'Pi H or Z Perm 17a': 'Z Perm',
+    'Pi H or Z Perm 17b': 'Z Perm', 'Pi H or Z Perm 17d': 'Solved',
+    'Peanut H or Z Perm and Pure Peanut 27': 'Solved',
+    'Peanut H or Z Perm and Pure Peanut 28': 'H Perm',
+    'Peanut H or Z Perm and Pure Peanut 29a': 'Z Perm',
+    'Peanut H or Z Perm and Pure Peanut 29b': 'Z Perm',
+  };
+  return Object.entries(want).every(([n, a]) => core.quizAnswer(subNS, byName(subNS, n)) === a);
+});
+t('quiz answers: NS L4C/L5C get class answers; only "L5C 137a" stays out', () => {
+  const cs = subNS.cases.filter((c) => c.corner === 'L4C' || c.corner === 'L5C');
+  const want = {
+    'L4C U perm': 'Horizontal U Perm', 'L4C 33': 'H Perm', 'L4C 32': 'Z Perm',
+    'L5C 35a': 'Wat Perm', 'L5C 36a': 'X Perm', 'L5C 37a': 'Swirl Perm',
+  };
+  if (!Object.entries(want).every(([n, a]) => core.quizAnswer(subNS, byName(subNS, n)) === a)) return false;
+  return cs.every((c) => (c.caseId === '137a') === (core.quizAnswer(subNS, c) === null));
+});
+t('quiz answers: every NS answer is one of the 11 class labels', () => {
+  const LABELS = new Set(['Swirl Perm', 'Wat Perm', 'X Perm', 'Horizontal U Perm', 'Vertical U Perm',
+    'O Perm', 'Z Perm Conjugates', 'Triple Sledge', 'H Perm', 'Z Perm', 'Solved']);
+  return subNS.cases.every((c) => { const a = core.quizAnswer(subNS, c); return a === null || LABELS.has(a); });
+});
+t('quiz answers: TCLL labels are context-dependent — authored verbatim', () => {
+  if (core.centerVocab(subTC).pure) return false; // if this flips, sig-resolution may be enabled
+  return subTC.cases.every((c) => core.quizAnswer(subTC, c) === c.center);
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

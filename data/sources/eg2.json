@@ -1,6 +1,10 @@
 {
   "method": "EG2",
   "source": "EG2.xlsx",
+  "credit": {
+    "title": "EG2",
+    "url": "https://docs.google.com/spreadsheets/d/1wlNP1AxmvjXFfgI5Rckrpf9004byL5UKILvYCS4dFvc/edit?usp=sharing"
+  },
   "ratings": [
     "best",
     "neutral"

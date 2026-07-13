@@ -68,6 +68,19 @@
         }
       },
       "source": "Full NS + Alts Sheet (2026_ns_sheet.xlsx)",
+      "credit": {
+        "title": "2026 NS",
+        "url": "https://docs.google.com/spreadsheets/d/1H7wURtjJLzNBOaV3_EvvW0sgrek5ASDPTM4M8lciGWY/edit?usp=sharing",
+        "by": [
+          "Jacob Levie",
+          "Alex Rosado",
+          "Ariel Benchetrit",
+          "Max Parris",
+          "Vojtěch Grohmann",
+          "Michał Denkiewicz",
+          "Carter Kucala"
+        ]
+      },
       "ratings": [
         "best",
         "neutral",
@@ -5947,6 +5960,10 @@
         }
       },
       "source": "EG2.xlsx",
+      "credit": {
+        "title": "EG2",
+        "url": "https://docs.google.com/spreadsheets/d/1wlNP1AxmvjXFfgI5Rckrpf9004byL5UKILvYCS4dFvc/edit?usp=sharing"
+      },
       "ratings": [
         "best",
         "neutral"
@@ -10330,6 +10347,13 @@
         }
       },
       "source": "Full TCLL - Max Parris",
+      "credit": {
+        "title": "Full TCLL",
+        "url": "https://docs.google.com/spreadsheets/d/1BFAjvkX8dGVfQKNLfbCeyjeffoErMtefIDg1-9rZvvM/edit?usp=sharing",
+        "by": [
+          "Max Parris"
+        ]
+      },
       "ratings": [
         "best",
         "neutral"

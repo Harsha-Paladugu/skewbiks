@@ -8,15 +8,31 @@ production. Edit here, rebuild, commit the regenerated `js/trainer.js`.
 - `skewb-trainer.jsx` — the trainer React component (UI + persistence): four
   modes, every case diagram drawn with the solved layer on the bottom (netSVG
   `pinned`) — Algorithm drill/recap, Full solve (timer + optimal-line/first-layer
-  analysis), Recognition (Full view: reveal + self-grade with per-case accuracy;
-  Center-cases view: first layer + a chosen 3-center combo shown, optional 2
-  random corners, multiple-choice over the sheet's center-case names +
-  Don't know, auto-graded per-center-case accuracy), One-look (self-graded
+  analysis), Recognition (Full view: y²-coin-flipped diagram, reveal +
+  self-grade with per-case accuracy; Center-cases view: first layer + a chosen
+  3-center combo shown at the anchor view, optional 2 random corners,
+  multiple-choice + Don't know, auto-graded per-center-case accuracy — answers
+  come from `core.quizAnswer`, which resolves the sheets' center-case names
+  from the centers the diagram actually shows: EG2's and NS's labels are a
+  pure function of the center perm (machine-verified, pinned in test-trainer;
+  EG2's direction-less L5C labels fold into the Pi/Peanut vocabulary and its
+  eight directional U-perm labels condense into a single "U" answer, NS's
+  lumped "H or Z Perm" rows split into H Perm / Z Perm / Solved and its
+  unlabeled L4C/L5C cases resolve through the same map), while TCLL's labels
+  encode twist/pseudo context and stay authored verbatim), One-look (self-graded
   case prediction in inspection: Random — scrambles whose nearest layer is
   exactly N moves away, reveal lists the optimal layer lines; My solution —
-  enter a fixed layer solution and get scrambles it solves the bottom layer
-  on, reveal shows the exact post-layer state — rendered layer-down via
-  netSVG's `pinned` option — + best-effort case name).
+  enter a fixed layer solution and get scrambles from which PHYSICALLY
+  executing it on the cube in hand solves the bottom layer: preimages are
+  computed in the facelet model against the held frame (`core.preimageOfLayer`
+  — the scramble text's absorbed free-corner rotations mean raw state facelets
+  are NOT what's in hand; USER-falsified 2026-07-13 with solution "U" needing
+  a physical L, repro + fix pinned in test-trainer against the solver-core
+  physical oracle). Rotation tokens and the NS letters F/R/L/f (they move the
+  fixed white/red/green corner, whose preimages no scramble text can deliver)
+  are rejected at input. Reveal shows the exact post-layer state — its raw
+  frame IS the cube in hand (`fx[UFL] = 0` draws), layer-down via netSVG's
+  `pinned` option — + best-effort case name.
 - `skewb-core.mjs` — the substrate, no React/DOM: case model over
   `data/skewb_algs.json` (fetched at runtime — NOT bundled), presentation
   geometry (`prependAUF` presentation synthesis — backs recognition's y²

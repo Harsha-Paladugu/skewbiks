@@ -90,6 +90,7 @@
         // keep every authored case field (corner/sign/id/center/caseId/…) —
         // the subset's `nav` block groups, filters and sorts by them.
         SUBSETMAP[key] = { key, name: cont[key].name || key, nav: cont[key].nav || null,
+          credit: cont[key].credit || null,
           cases: cont[key].cases.map(c => Object.assign({}, c, { algs: c.algs.slice() })) };
         SECTIONS.push({ id: key, label: cont[key].name || key });
       }
@@ -563,6 +564,18 @@
     return h('div', { class: 'adder' }, input, h('button', { class: 'primary sm', onclick: submit }, 'Add'), fb);
   }
 
+  // attribution for imported subsets: the authored `credit` block names the
+  // community sheet the algorithms come from and links to it.
+  function creditLine(sub) {
+    const cr = sub.credit;
+    if (!cr || !cr.url) return null;
+    const by = cr.by || [];
+    const names = by.length > 1 ? by.slice(0, -1).join(', ') + ' and ' + by[by.length - 1] : (by[0] || '');
+    return h('p', { class: 'algcredit' }, 'Algorithms from ',
+      h('a', { href: cr.url, target: '_blank', rel: 'noopener' }, 'the ' + cr.title + ' sheet'),
+      names ? ' by ' + names + '.' : '.');
+  }
+
   function renderMain() {
     main.innerHTML = '';
     const sub = SUBSETMAP[section];
@@ -574,6 +587,7 @@
     const cases = pool.filter(c => matchCase(sub.key, c));
     if (!cases.length) { main.appendChild(h('div', { class: 'nomatch big' }, query ? 'No cases match “' + query + '”.' : 'No cases here yet.')); return; }
     main.appendChild(h('section', { class: 'subset' },
+      creditLine(sub),
       h('div', { class: 'casegrid' }, cases.map(c => renderCase(sub.key, c)))));
   }
 

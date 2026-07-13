@@ -189,7 +189,7 @@ const ID_ORDER = ['U', 'FL', 'FR', 'BR', 'BL'];
 const ADAPTERS = {
   tcll: {
     key: 'TCLL', name: 'TCLL',
-    subsetExtras: (src) => ({ source: src.source, ratings: src.ratings, recognition: src.recognition, sheetNotes: src.sheetNotes }),
+    subsetExtras: (src) => ({ source: src.source, credit: src.credit, ratings: src.ratings, recognition: src.recognition, sheetNotes: src.sheetNotes }),
     caseOf: (c) => ({
       name: c.name,
       section: c.cornerName + (c.sign || ''),
@@ -205,7 +205,7 @@ const ADAPTERS = {
   },
   eg2: {
     key: 'EG2', name: 'EG2',
-    subsetExtras: (src) => ({ source: src.source, ratings: src.ratings }),
+    subsetExtras: (src) => ({ source: src.source, credit: src.credit, ratings: src.ratings }),
     caseOf: (c) => ({
       name: [c.corner, c.id, c.center].filter(Boolean).join(' '),
       section: c.corner,
@@ -219,7 +219,7 @@ const ADAPTERS = {
   },
   ns: {
     key: 'NS', name: 'NS Method',
-    subsetExtras: (src) => ({ source: src.source, ratings: src.ratings, firstMoveOrder: src.firstMoveOrder }),
+    subsetExtras: (src) => ({ source: src.source, credit: src.credit, ratings: src.ratings, firstMoveOrder: src.firstMoveOrder }),
     caseOf: (c) => ({
       name: c.corner + (c.centerPattern ? ' ' + c.centerPattern : '') + ' ' + c.caseId,
       section: c.centerPattern || c.corner,

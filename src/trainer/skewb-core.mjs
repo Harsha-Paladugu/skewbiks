@@ -32,6 +32,12 @@ export function stripPostRot(alg) { // trailing whole-cube rotations are cosmeti
   return toks.join(' ');
 }
 
+// One-look "My solution" placeholder examples, per notation. Every letter must
+// pass the input's own physPermOf guard (no rotations, no fixed-corner letters
+// — NS capital R/L/F/f move the fixed white/red/green corner); pinned in
+// test:trainer so the UI never suggests a solution it would reject.
+export const SOL_EXAMPLES = { ns: "r' b l", wca: "R' B L" };
+
 // The sheets' first-move letter convention (see js/algs.js / import-method-sheets.mjs).
 export const FM_ORDER = ['r', "r'", 'R', "R'", 'B', "B'", 'b', "b'"];
 const SHEET_FM = { R: 'B', U: 'b', L: 'r', B: 'R' };
@@ -371,26 +377,78 @@ export function createCore(E) {
     return null;
   }
 
-  // "Fixed layer solution" problems. The move action on states is simply
-  // transitive, so for a user sequence S (given as the state A = S applied to
-  // solved) any native realization β of A⁻¹ (a descent of A to solved) makes
-  // "S after β" the identity: X = β(Y) is the unique state from which running
-  // S lands EXACTLY on Y. Pick Y among the 540 D-layer-solved states and the
-  // case left after the user's layer IS Y — engine-tested in test-trainer.
+  // "Fixed layer solution" problems — solved PHYSICALLY, at the facelet level.
+  //
+  // The old state-level construction (X = β(Y) with β a native realization of
+  // A⁻¹) is engine-true but physically wrong: the cube a human holds after
+  // executing the scramble TEXT is toFixedFacelets(X), not raw toFacelets(X) —
+  // every written free-corner letter (WCA B / NS b) parks a 240° whole-cube
+  // rotation in the parsing frame — so with a net walk the user's sequence hit
+  // a rotated cube (USER report 2026-07-13: solution "U" needed a physical L,
+  // layer landed off-bottom; machine repro pinned in test-trainer).
+  //
+  // Correct spec: after the scramble text T and then the user's sequence S the
+  // HAND must show a D-solved pattern. held(T) = toFixedFacelets(state(T)) for
+  // every rotation-free WCA text (engine-guaranteed), so with Φ = the physical
+  // facelet perm of S we need toFixedFacelets(X) = Φ⁻¹(raw(Y)) — and the end
+  // pattern in hand is EXACTLY raw(Y), the drawn case, layer on the bottom.
+  //
+  // Two vocabulary limits keep that equation solvable (enforced by physPermOf):
+  //  - no whole-cube rotation tokens (their letters differ physically between
+  //    WCA / engine / sheet conventions — ground truth §Notation notes);
+  //  - no NS F/R/L/f: those twist the half CONTAINING the fixed white/red/
+  //    green (UFL) corner, and no rotation-free scramble text can deliver the
+  //    UFL-displaced preimages they need. WCA R/U/L/B and NS r/B/l/b all stay
+  //    inside the UFL-pristine orbit. Machine-verified 2026-07-13.
+  //
+  // Y is drawn from the D-solved states with fx[UFL] = 0 — the ones whose raw
+  // pattern is physically reachable in hand (raw = fixed frame there).
+  const pApplyFl = (fl, P) => P.map((src) => fl[src]);
+  const pThenFl = (P, Q) => Q.map((q) => P[q]); // apply P, then Q (dst<-src maps)
+  const pInvFl = (P) => { const r = new Array(30); for (let i = 0; i < 30; i++) r[P[i]] = i; return r; };
+  const flEq = (a, b) => a.every((v, i) => v === b[i]);
+  const UFL_AX = E.AXIS.indexOf('UFL');
+  // physical half-twist perms of the letters the layer vocabulary allows
+  // (TNoodle-anchored engine perms; every other corner is rejected above)
+  const TWISTS = {
+    UBR: E.moveFaceletPerm.UBR, DFR: E.moveFaceletPerm.DFR,
+    DBL: E.moveFaceletPerm.DBL, DBR: E.WCA_FACELET_MOVES.B,
+  };
+  // the physical facelet perm of a parsed sequence, or an error tag:
+  // 'rot' (rotation token) / 'ufl' (a letter that moves the UFL corner)
+  function physPermOf(parsed) {
+    let P = null;
+    for (const t of parsed) {
+      if (t.kind === 'rot') return { err: 'rot' };
+      if (t.kind !== 'move') continue;
+      const tw = TWISTS[t.c];
+      if (!tw) return { err: 'ufl' };
+      for (let k = 0; k < t.amt; k++) P = P ? pThenFl(P, tw) : tw.slice();
+    }
+    return P ? { phi: P } : { err: 'empty' };
+  }
+
   let dSeedIdx = null;
   function randomDLayerState() {
     if (!dSeedIdx) {
       dSeedIdx = [];
-      for (const st of E.enumFreeSlots(layerSeedSpec('D'))) dSeedIdx.push(E.idx(st));
+      for (const st of E.enumFreeSlots(layerSeedSpec('D'))) {
+        if (st.fx[UFL_AX] === 0) dSeedIdx.push(E.idx(st));
+      }
     }
     return E.unidx(dSeedIdx[Math.floor(Math.random() * dSeedIdx.length)]);
   }
-  function preimageOfLayer(A, Y, dist) {
-    const sol = descend(A, dist); // β: native moves taking A to solved
-    if (!sol) return null;
-    const X = E.copy(Y);
-    for (const mi of sol.moves) E.applyMoveIdx(X, mi);
-    return X;
+  // X such that a human who executes any scramble text reaching X and then the
+  // sequence with physical perm phi holds raw(Y): scan the ≤3 pinned readings
+  // of the required hand pattern for the reachable one whose fixed frame is it.
+  function preimageOfLayer(phi, Y, dist) {
+    const H = pApplyFl(E.toFacelets(Y), pInvFl(phi));
+    let fl = H;
+    for (let k = 0; k < 3; k++, fl = E.applyFaceletPerm(fl, E.ROT240_UFL)) {
+      let X; try { X = E.fromFacelets(fl); } catch (e) { continue; }
+      if (dist[E.idx(X)] >= 0 && flEq(E.toFixedFacelets(X), H)) return X;
+    }
+    return null;
   }
 
   // ---------- partial-view recognition (center-case quiz) ----------
@@ -428,6 +486,81 @@ export function createCore(E) {
     return parts.join('|');
   }
 
+  // ---------- center-case quiz answers ----------
+  // The quiz answers with the sheets' center-case names, but resolves each
+  // case's answer from the centers its diagram actually SHOWS (the anchor
+  // view — the quiz pins d = 0) wherever the subset's labels are a pure
+  // function of the center permutation. Machine-verified 2026-07-13, pinned
+  // in test-trainer:
+  //   EG2 — Pi/Peanut labels <-> the 60 D-anchored center perms is a
+  //         bijection at the anchor view; the sheet's L5C column drops the
+  //         direction letter (U1/U2/Z) and labels the centers-solved case
+  //         'H', so L5C answers resolve through the Pi/Peanut map (adding
+  //         no options beyond the 24 Pi/Peanut labels). The quiz then folds
+  //         the eight directional U labels (U1/U2 x l/f/r/b) into one 'U'
+  //         answer (USER decision 2026-07-13: side/direction is not a
+  //         recognition distinction) — 17 quiz options.
+  //   NS  — class labels are sig-pure once the sheet's lumped "H or Z Perm
+  //         (and Pure Peanut)" rows are split into the three patterns they
+  //         actually contain (H Perm / Z Perm / Solved); the map then covers
+  //         all 60 perms, so L4C/L5C cases (authored with no centerPattern)
+  //         get real answers too. 'L5C 137a' has twisted corners and
+  //         off-anchor centers — not a centers case, stays unquizzable.
+  //   TCLL — center labels also encode twist/pseudo context (the same
+  //         center perm reads 'Z1' or 'FRl' by corner situation), so
+  //         authored labels are used verbatim.
+  const answerFieldOf = (c) => c.centerPattern || c.center || null;
+  // seed cases: those whose authored label is authoritative for its center perm
+  const CENTER_SEEDS = { EG2: (c) => c.corner !== 'L5C', NS: (c) => !!c.centerPattern };
+  // quiz-only label merges: sheet labels that name ONE recognition class.
+  // EG2's U-perm family (U1/U2 x l/f/r/b, plus L5C's bare U1/U2) all answer 'U'.
+  const CENTER_FOLDS = { EG2: (l) => (/^U[12][lfrb]?$/.test(l) ? 'U' : l) };
+  const foldLabel = (sub, l) => (l && CENTER_FOLDS[sub.key] ? CENTER_FOLDS[sub.key](l) : l);
+
+  // structural names for the patterns inside NS's lumped H-or-Z rows
+  function hzsName(ctr) {
+    const moved = [];
+    for (let i = 0; i < 6; i++) if (ctr[i] !== i) moved.push(i);
+    if (!moved.length) return 'Solved';
+    if (moved.length === 4 && moved.every((i) => ctr[ctr[i]] === i))
+      return moved.every((i) => ctr[i] === (i + 3) % 6) ? 'H Perm' : 'Z Perm'; // FACES pairs U/D R/L F/B sit 3 apart
+    return null;
+  }
+
+  // per-subset center-perm -> label map; pure=false means labels are not
+  // sig-determined (or seeds conflicted) and authored labels must be trusted
+  const vocabCache = new Map();
+  function centerVocab(sub) {
+    let v = vocabCache.get(sub.key);
+    if (v) return v;
+    const seedOk = CENTER_SEEDS[sub.key];
+    const map = new Map();
+    let pure = !!seedOk;
+    if (seedOk) {
+      for (const c of sub.cases) {
+        const raw = answerFieldOf(c);
+        if (!raw || !seedOk(c)) continue;
+        const st = stateForDir(c, 0);
+        if (!st) continue;
+        const key = st.ctr.join(',');
+        const label = foldLabel(sub, /^H or Z\b/.test(raw) ? (hzsName(st.ctr) || raw) : raw);
+        if (map.has(key) && map.get(key) !== label) { pure = false; break; }
+        map.set(key, label);
+      }
+    }
+    v = { pure, map };
+    vocabCache.set(sub.key, v);
+    return v;
+  }
+
+  // the case's quiz answer, or null if it has none (not a centers case)
+  function quizAnswer(sub, c) {
+    const v = centerVocab(sub);
+    if (!v.pure) return foldLabel(sub, answerFieldOf(c));
+    const st = stateForDir(c, 0);
+    return (st && v.map.get(st.ctr.join(','))) || null;
+  }
+
   // facelet indices to HIDE so only the view's pieces stay visible. Trainer
   // diagrams render in the engine's pinned frame (netSVG opts.pinned — solved
   // layer stays visually on the bottom), so raw sticker positions ARE display
@@ -453,7 +586,8 @@ export function createCore(E) {
     maskedScramble, randomReachable, descend, descentLines, toWCA,
     layerSolved, anyLayerSolved, layerSeedSpec, flSeedIndices, buildFLDist,
     analyze, lineLayerSplit,
-    randomAtFLDist, randomDLayerState, preimageOfLayer,
+    randomAtFLDist, randomDLayerState, preimageOfLayer, physPermOf,
+    centerVocab, quizAnswer,
     pickCorners, viewSignature, maskForView,
     MASK_MIN, MASK_MAX, RECOG_CENTERS, RECOG_CORNERS,
   };
