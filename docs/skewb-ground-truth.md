@@ -167,6 +167,34 @@ mirror sides share one page, shown side by side. `makeCanon`/`makeMirrorCanon`/
 `makeFullCanon` survive as oracles/intermediates. The sheet/trainer case keying
 (`realCanonKey`, y²-fold) is unaffected.
 
+## The CF subset (centers solved relative to each other) — machine-verified 2026-07-13
+
+A state is **CF** when some whole-cube rotation would make every center match its face —
+i.e. `ctr[ρ(f)] = f` for a rotation ρ. Only the 12 tetrad-preserving rotations can match:
+`ctr` is always an even permutation, and the 12 tetrad-swapping re-holds act as odd
+permutations on the six centers. So the test set is 12 center arrangements
+(`E.centersRelSolved`; the arrangements come from `properRotFps()`, the same face-perm
+enumeration `buildSyms` uses). NOTE the arrangements are what a physically rotated solved
+cube LOOKS like — symmetries act on states by conjugation, so `sym.apply(solved)` is solved
+and useless for building them (falsified 2026-07-13, first construction attempt).
+
+Counts (oracles in tools/verify-space.mjs): **104,976 raw states** (= 12 × 8,748, the
+per-arrangement fiber) → **4,503 hold-24 census entries**. Per-depth:
+
+```
+depth:        0  1  2  3   4    5     6     7      8      9    10  11
+raw CF:       1  0  0  0  72  360  2244  9588  36103  53084  3484  40
+CF entries:   1  0  0  0   4   16    99   407   1533   2264   174   5
+```
+
+The predicate is constant on every hold-24 orbit (all 24 rotation images of s and ι(s))
+AND under mirrors — verified exhaustively over all 132,315 entries — so the census
+classifies an entry by testing its rep alone (js/oo.js `T.cfIdx`), and both sides of a
+mirror pair always agree on the CF badge. The census UI: a "CF · centers solved" scope
+on Browse by depth (`#/browse/cf/<depth>`), a CF chip on position pages, a home-page
+link. Fast gates: two `centersRelSolved` tests in tools/test-engine.mjs (depth ≤ 4
+witness sweep + 24-sym invariance).
+
 ## Test vectors
 
 Facelet convention (TNoodle net): faces 0=U 1=R 2=F 3=D 4=L 5=B; per face sticker 0 = square

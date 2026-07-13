@@ -384,7 +384,7 @@ function composeSym(a, b) { return symFromFacePerm(faceCompose(a.fp, b.fp), a.mi
 // generate the 12 tetrad-preserving rotations + the 12 mirror images
 const G4 = {}; // axis-corner rotation face perms (native-move direction)
 for (const A of AXIS) { const rot = rotAboutCorner(A); const m = {}; for (const f of FACES) m[f] = FACE_BY_N[vkey(rot(FNORM[f]))]; G4[A] = m; }
-function buildSyms() {
+function properRotFps() { // face perms of the 12 tetrad-preserving proper rotations
   const seen = new Map([[JSON.stringify(FACE_ID), FACE_ID]]);
   const queue = [FACE_ID];
   while (queue.length) {
@@ -394,11 +394,29 @@ function buildSyms() {
       if (!seen.has(k)) { seen.set(k, nf); queue.push(nf); }
     }
   }
-  const rots = [...seen.values()].map(fp => symFromFacePerm(fp, false));
+  return [...seen.values()];
+}
+function buildSyms() {
+  const rots = properRotFps().map(fp => symFromFacePerm(fp, false));
   if (rots.length !== 12) throw new Error('expected 12 rotations, got ' + rots.length);
   const mirrors = rots.map(r => symFromFacePerm(faceCompose(r.fp, MIRROR_FP), true));
   return { rots, mirrors, all: rots.concat(mirrors) };
 }
+
+// CF subset: the six centers are solved RELATIVE TO EACH OTHER — some whole-cube
+// rotation ρ would make every center match its face, i.e. ctr[ρ(f)] = f. Only
+// the 12 tetrad-preserving rotations can match (ctr is always an even
+// permutation; the 12 tetrad-swapping re-holds act oddly on centers), so the
+// test set is 12 arrangements. Invariant across a census entry's whole hold-24
+// orbit AND under mirrors (conjugation permutes the arrangements among
+// themselves) — machine-verified over all 132,315 entries: 4,503 are CF
+// (tools/verify-space.mjs pins the count and per-depth table).
+const CF_CTRS = new Set(properRotFps().map(fp => {
+  const ctr = new Array(6);
+  for (const f of FACES) ctr[FIDX[fp[f]]] = FIDX[f];
+  return ctr.join('');
+}));
+function centersRelSolved(s) { return CF_CTRS.has(s.ctr.join('')); }
 
 // ---------------- canonicalization ----------------
 function makeCanon(syms) {
@@ -807,6 +825,7 @@ module.exports = {
   FACES, S4, G4, OPP, MOVES, NSLOTS,
   solved, copy, eq, move, applyMoveIdx, idx, unidx,
   buildSyms, symFromFacePerm, applySym, makeCanon, makeMirrorCanon, makeFullCanon,
+  centersRelSolved,
   makeHoldSym, makeHold24Canon, makeFull48Canon,
   parseAlg, countMoves, applyParsed, makeFrames, mirrorAlg,
   optimalSolution, optimalScramble, invertAlg, faceCompose, FACE_ID,

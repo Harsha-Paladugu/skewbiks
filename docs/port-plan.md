@@ -3,8 +3,10 @@
 The approved milestone plan for porting the pyraminx-oo codebase to the Skewb, with live
 status. Companion doc: `skewb-ground-truth.md` (machine-verified domain facts + sources).
 User-facing decisions already made: fork (not monorepo); v1 = Home + OO census + Algorithms
-+ Trainer + Method solver; trainer = three tools (case/alg drill, full-solve timer +
-analysis, case recognition) as modes of one bundle; solver method lineup decided at M7;
++ Trainer + Method solver; trainer = three tools (case/alg drill, case recognition,
+one-look) as modes of one bundle (the originally planned full-solve timer + analysis
+mode shipped in M6 and was REMOVED 2026-07-13 — USER: other tools cover full solves,
+it was clutter); solver method lineup decided at M7;
 new Firebase project; domain skewbiks.com (GitHub Pages, CNAME).
 
 ## Status
@@ -298,7 +300,23 @@ new Firebase project; domain skewbiks.com (GitHub Pages, CNAME).
     "Back view" tag shows only on flips), and the core's 4-presentation
     keying machinery (`casePres`/`stateForDir`/`prependAUF`) stays — it backs
     recognition, alg y-chips, and the one-look reverse lookup.
-- [x] **M7 — Solver** (2026-07-07). **Movecount-only scope per USER decision**
+  - **2026-07-13 follow-up (USER request): Full solve mode REMOVED + recognition
+    diagrams in the algs-page format.** The full-solve timer/analysis tab is
+    deleted as clutter ("there are other things people use for that") — with it
+    `core.analyze`/`lineLayerSplit`, `solveStats`, the session ao5, and their
+    two substrate tests; the fldist table now builds lazily for One-look only
+    (`descentLines`/`anyLayerSolved`/`randomReachable` stay — One-look reveals
+    and the tests use them; old storage blobs with `mode: "solve"` fall back to
+    drill, stray `solveStats` fields are dropped on the next save). Recognition
+    (stage + missed-cases grid) now draws the Algorithms page's bat-shaped
+    sheet picture — `caseSVG` on the raw pinned facelets (`CaseNet`), with
+    `caseSVG` gaining netSVG's `opts.mask` for the centers quiz. Safe because
+    recognition only shows the d=0/d=2 views, and those are D-anchored for
+    every sheet case (machine-checked against solver-core `layerDownFacelets`:
+    288/5,404 case states rotate but 286 are the never-shown d=1/d=3 views;
+    the sole d=0/d=2 exception "TCLL Twoface- U solved" was equally off-anchor
+    under the old pinned netSVG) — so masks stay raw sticker indices, no
+    solver-core in the trainer bundle. **Movecount-only scope per USER decision**
   ("simple movecount metrics; fingertrick metrics later once I speak with top
   solvers; solutions go through the layer — or applicable first step — then an
   algorithm; rotations allowed mid-solve; organize by movecount"), superseding

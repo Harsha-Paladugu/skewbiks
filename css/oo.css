@@ -1,5 +1,17 @@
 /* Pyraminx.net — OO census page styles. */
 
+/* depth-browser scope tabs: full census vs the CF (centers-solved) subset */
+.scoperow{display:inline-flex;gap:6px;margin:12px 0 2px}
+.scopetab{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line2);color:var(--mut);
+  border-radius:8px;padding:.4em 1em;font:600 13px var(--body);text-decoration:none}
+.scopetab:hover{color:var(--txt);border-color:var(--mut)}
+.scopetab.on{color:var(--actink);background:var(--act);border-color:var(--act)}
+.scopetab .fct{font:500 11px var(--mono);color:var(--dim)}
+.scopetab.on .fct{color:rgba(35,28,5,.66)}
+
+/* CF badge next to the depth chip on a position page */
+.cfchip{font-size:12px;border-radius:6px;padding:2px 8px;color:var(--act);border:1px solid var(--act);cursor:help}
+
 /* depth-browser solved/unsolved filter */
 .filterrow{display:inline-flex;gap:6px;margin:0 0 16px}
 .filterbtn{display:inline-flex;align-items:center;gap:7px;background:transparent;border:1px solid var(--line2);

@@ -166,9 +166,12 @@ const CASE_POLYS = (() => {
 })();
 function caseSVG(fl, width, opts) {
   const o = opts || {};
+  // opts.mask: display facelet indices to hide (netSVG's convention) — the
+  // trainer's partial-recognition quiz. D-face entries are moot (D not drawn).
+  const mask = o.mask ? (o.mask instanceof Set ? o.mask : new Set(o.mask)) : null;
   const v = 1 / Math.sqrt(3), m = 0.06;
   const polys = CASE_POLYS.map(s =>
-    `<polygon points="${s.pts.map(p => p[0].toFixed(4) + ',' + (p[1] * v).toFixed(4)).join(' ')}" fill="${COLORS[FACES[fl[s.fi]]]}" stroke="#10141c" stroke-width="0.05" stroke-linejoin="round"/>`);
+    `<polygon points="${s.pts.map(p => p[0].toFixed(4) + ',' + (p[1] * v).toFixed(4)).join(' ')}" fill="${mask && mask.has(s.fi) ? MASKED_FILL : COLORS[FACES[fl[s.fi]]]}" stroke="#10141c" stroke-width="0.05" stroke-linejoin="round"/>`);
   const W = 8 + 2 * m, H = 8 * v + 2 * m;
   return `<svg viewBox="${-m} ${-m} ${W.toFixed(4)} ${H.toFixed(4)}" width="${width}" height="${Math.round(width * H / W)}" class="${o.cls || 'oonet'}" role="img" aria-label="case, alg-sheet view">` + polys.join('') + '</svg>';
 }

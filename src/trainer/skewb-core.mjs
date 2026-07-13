@@ -12,7 +12,7 @@
  *     Back/Left drill targets are synthesized as caseStateOf(prependAUF(p, alg))
  *     per the site convention (p = 0 Front / 1 Right / 2 Back / 3 Left)
  *   - masked scrambles (length decorrelated from case difficulty)
- *   - the first-layer predicate + goal-distance table for full-solve analysis
+ *   - the first-layer predicate + goal-distance table for one-look problems
  *
  * Plain .mjs so Node tests (tools/test-trainer.mjs) can import it with the
  * documented window-stub engine recipe; esbuild bundles it natively.
@@ -325,46 +325,6 @@ export function createCore(E) {
     return g;
   }
 
-  // Full-solve analysis: the direct-optimal picture plus a method-shaped
-  // first-layer decomposition (best FL line by total = FL + optimal finish,
-  // over up to `cap` optimal-FL descents).
-  function analyze(state, dist, fldist, cap = 64) {
-    const direct = dist[E.idx(state)];
-    if (direct < 0) return null;
-    const lines = descentLines(state, dist, 24).map((l) => ({ alg: toWCA(l.moves), moves: l.moves }));
-    const out = { direct, lines, method: null };
-    if (fldist) {
-      const flLen = fldist[E.idx(state)];
-      let best = null;
-      for (const l of descentLines(state, fldist, cap)) {
-        const finish = dist[E.idx(l.end)];
-        if (!best || flLen + finish < best.total) {
-          best = { flLen, finish, total: flLen + finish, flMoves: l.moves, face: anyLayerSolved(l.end), end: l.end };
-        }
-      }
-      if (best) {
-        const fin = descend(best.end, dist);
-        out.method = {
-          flLen: best.flLen, finish: best.finish, total: best.total, face: best.face,
-          flAlg: toWCA(best.flMoves), finishAlg: fin ? toWCA(fin.moves) : '',
-        };
-      }
-    }
-    return out;
-  }
-
-  // where (if ever) a line (native move indices) first completes a layer,
-  // strictly before its end
-  function lineLayerSplit(state, moves) {
-    const cur = E.copy(state);
-    for (let n = 0; n < moves.length - 1; n++) {
-      E.applyMoveIdx(cur, moves[n]);
-      const f = anyLayerSolved(cur);
-      if (f) return { at: n + 1, face: f };
-    }
-    return null;
-  }
-
   // ---------- one-look ----------
   // "Layer length" problems: a uniform state whose nearest layer (any face)
   // is exactly n moves away — rejection over the slot range. The thinnest
@@ -498,8 +458,10 @@ export function createCore(E) {
   //         'H', so L5C answers resolve through the Pi/Peanut map (adding
   //         no options beyond the 24 Pi/Peanut labels). The quiz then folds
   //         the eight directional U labels (U1/U2 x l/f/r/b) into one 'U'
-  //         answer (USER decision 2026-07-13: side/direction is not a
-  //         recognition distinction) — 17 quiz options.
+  //         answer and each numbered pair (O1/O2, S1/S2, TS1/TS2, W1/W2,
+  //         X1/X2, Z1/Z2, ZC1/ZC2) into its stem (USER decisions 2026-07-13:
+  //         side/direction is not a recognition distinction) — 10 quiz
+  //         options.
   //   NS  — class labels are sig-pure once the sheet's lumped "H or Z Perm
   //         (and Pure Peanut)" rows are split into the three patterns they
   //         actually contain (H Perm / Z Perm / Solved); the map then covers
@@ -513,8 +475,15 @@ export function createCore(E) {
   // seed cases: those whose authored label is authoritative for its center perm
   const CENTER_SEEDS = { EG2: (c) => c.corner !== 'L5C', NS: (c) => !!c.centerPattern };
   // quiz-only label merges: sheet labels that name ONE recognition class.
-  // EG2's U-perm family (U1/U2 x l/f/r/b, plus L5C's bare U1/U2) all answer 'U'.
-  const CENTER_FOLDS = { EG2: (l) => (/^U[12][lfrb]?$/.test(l) ? 'U' : l) };
+  // EG2's U-perm family (U1/U2 x l/f/r/b, plus L5C's bare U1/U2) all answer
+  // 'U', and each numbered pair (O1/O2 … ZC1/ZC2) answers its stem.
+  const CENTER_FOLDS = {
+    EG2: (l) => {
+      if (/^U[12][lfrb]?$/.test(l)) return 'U';
+      const m = /^(ZC|TS|[OSWXZ])[12]$/.exec(l);
+      return m ? m[1] : l;
+    },
+  };
   const foldLabel = (sub, l) => (l && CENTER_FOLDS[sub.key] ? CENTER_FOLDS[sub.key](l) : l);
 
   // structural names for the patterns inside NS's lumped H-or-Z rows
@@ -585,7 +554,6 @@ export function createCore(E) {
     buildModel, navSorted, casePres, stateForDir, algsForDir, firstMoveOf,
     maskedScramble, randomReachable, descend, descentLines, toWCA,
     layerSolved, anyLayerSolved, layerSeedSpec, flSeedIndices, buildFLDist,
-    analyze, lineLayerSplit,
     randomAtFLDist, randomDLayerState, preimageOfLayer, physPermOf,
     centerVocab, quizAnswer,
     pickCorners, viewSignature, maskForView,

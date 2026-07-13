@@ -71,7 +71,16 @@ async function buildTables(report) {
   T.reps = cls.reps;
   T.depths = cls.depths;
   T.depthIdx = Array.from({ length: 12 }, () => []);
-  for (let o = 0; o < T.reps.length; o++) T.depthIdx[T.depths[o]].push(o);
+  // CF subset: entries whose centers are solved relative to each other (only
+  // corners left after a rotation). centersRelSolved is invariant across the
+  // whole hold-24 orbit, so testing the rep classifies the entry — 4,503 of
+  // the 132,315 entries (count + per-depth table pinned in verify-space.mjs).
+  T.cfIdx = Array.from({ length: 12 }, () => []);
+  T.cfCount = 0;
+  for (let o = 0; o < T.reps.length; o++) {
+    T.depthIdx[T.depths[o]].push(o);
+    if (E.centersRelSolved(E.unidx(T.reps[o]))) { T.cfIdx[T.depths[o]].push(o); T.cfCount++; }
+  }
   T.ready = true;
 }
 function ordinalOf(classId) { // binary search in reps
@@ -519,6 +528,8 @@ async function pageHome(main) {
   main.appendChild(searchBox);
   main.appendChild(h('div', { class: 'homelinks' },
     h('a', { class: 'ghost', href: '#/browse' }, 'Browse by depth'),
+    h('a', { class: 'ghost', href: '#/browse/cf', title: 'Positions whose six centers are already solved relative to each other — the CF (centers-first) subset.' },
+      'Browse the ' + fmt(T.cfCount) + ' CF positions'),
     h('button', { class: 'ghost', onclick: async () => {
       const bm = await DB.doneMap();
       for (let tries = 0; tries < 4000; tries++) {
@@ -553,6 +564,8 @@ function sidePanel(side, label, doneSet, exactView) {
     h('div', { class: 'sidehead' },
       h('span', { class: 'sidelabel' }, label),
       h('span', { class: 'depthchip d' + side.depth }, side.depth + ' moves deep'),
+      E.centersRelSolved(side.state) ? h('span', { class: 'cfchip',
+        title: 'All six centers are solved relative to each other — only corners left. A CF (centers-first) position.' }, 'CF') : null,
       (side.depth === 0 || (doneSet && doneSet.has(side.id))) ? h('span', { class: 'donechip' }, '\u2713 solved') : null,
       h('span', { class: 'ordinal' }, '#' + fmt(side.ord + 1))),
     (() => {
@@ -776,25 +789,40 @@ async function pageClass(main, anyId) {
 
 /* ---------------- browse ---------------- */
 async function pageBrowse(main, route) {
-  const m = route.match(/^#\/browse\/?(\d+)?(?:\/p(\d+))?/);
-  const depth = m && m[1] !== undefined ? +m[1] : 8;
-  const page = m && m[2] ? +m[2] : 0;
+  const m = route.match(/^#\/browse(\/cf)?\/?(\d+)?(?:\/p(\d+))?/);
+  const cf = !!(m && m[1]);            // CF scope: only centers-relatively-solved entries
+  const depth = m && m[2] !== undefined ? +m[2] : 8;
+  const page = m && m[3] ? +m[3] : 0;
+  const base = '#/browse' + (cf ? '/cf' : '');
+  const byDepth = cf ? T.cfIdx : T.depthIdx;
   const bm = await DB.doneMap();
   const isDone = o => isTrivial(o) || testBit(bm, o);
 
+  // scope tabs: the full census vs the CF subset. Switching keeps the depth
+  // when the other scope has positions there (CF has none at depths 1–3).
+  const scopeHref = (idx, b) => b + '/' + (idx[depth] && idx[depth].length ? depth : 8);
+  const scopes = h('div', { class: 'scoperow', role: 'group', 'aria-label': 'position set' },
+    h('a', { class: 'scopetab' + (cf ? '' : ' on'), href: scopeHref(T.depthIdx, '#/browse') }, 'All positions'),
+    h('a', { class: 'scopetab' + (cf ? ' on' : ''), href: scopeHref(T.cfIdx, '#/browse/cf') },
+      'CF · centers solved', h('span', { class: 'fct' }, fmt(T.cfCount))));
+
   const chips = h('div', { class: 'depthchips' });
   for (let d = 0; d <= 11; d++) {
-    const list = T.depthIdx[d];
+    const list = byDepth[d];
+    if (cf && !list.length) continue;   // CF has no positions at depths 1–3
     let done = 0; for (const o of list) if (isDone(o)) done++;
-    chips.appendChild(h('a', { href: '#/browse/' + d, class: 'depthsel d' + d + (d === depth ? ' on' : '') },
+    chips.appendChild(h('a', { href: base + '/' + d, class: 'depthsel d' + d + (d === depth ? ' on' : '') },
       h('b', null, String(d)), h('span', null, done + '/' + fmt(list.length))));
   }
   main.appendChild(h('section', { class: 'browsehead' },
-    h('h2', null, 'Every position, sorted by depth'),
-    h('p', { class: 'lede sm' }, 'Depth is the fewest moves a position can be solved in. Click any position to see its mirror, its rotations, and the solutions on record.'),
+    h('h2', null, cf ? 'CF positions — centers already solved' : 'Every position, sorted by depth'),
+    scopes,
+    h('p', { class: 'lede sm' }, cf
+      ? 'These ' + fmt(T.cfCount) + ' positions have all six centers solved relative to each other — turn the whole cube and only corners are left. Solving centers first is the CF method, theorized to be the most move-efficient approach for humans. Depth is still the fewest moves to solve the whole cube.'
+      : 'Depth is the fewest moves a position can be solved in. Click any position to see its mirror, its rotations, and the solutions on record.'),
     chips));
 
-  const full = T.depthIdx[depth];
+  const full = byDepth[depth];
   const solvedN = full.reduce((a, o) => a + (isDone(o) ? 1 : 0), 0);
   main.appendChild(h('div', { class: 'filterrow' },
     [['all', 'All', full.length], ['unsolved', 'Unsolved', full.length - solvedN], ['solved', 'Solved', solvedN]]
@@ -815,9 +843,9 @@ async function pageBrowse(main, route) {
   }
   main.appendChild(grid);
   const pager = h('div', { class: 'pager' },
-    h('a', { href: '#/browse/' + depth + '/p' + Math.max(0, pg - 1), class: 'ghost' + (pg === 0 ? ' off' : '') }, '\u2190 previous'),
-    h('span', { class: 'pginfo' }, 'page ' + fmt(pg + 1) + ' of ' + fmt(pages) + ' \u00b7 ' + fmt(list.length) + ' positions at depth ' + depth),
-    h('a', { href: '#/browse/' + depth + '/p' + Math.min(pages - 1, pg + 1), class: 'ghost' + (pg >= pages - 1 ? ' off' : '') }, 'next \u2192'),
+    h('a', { href: base + '/' + depth + '/p' + Math.max(0, pg - 1), class: 'ghost' + (pg === 0 ? ' off' : '') }, '\u2190 previous'),
+    h('span', { class: 'pginfo' }, 'page ' + fmt(pg + 1) + ' of ' + fmt(pages) + ' \u00b7 ' + fmt(list.length) + (cf ? ' CF' : '') + ' positions at depth ' + depth),
+    h('a', { href: base + '/' + depth + '/p' + Math.min(pages - 1, pg + 1), class: 'ghost' + (pg >= pages - 1 ? ' off' : '') }, 'next \u2192'),
     h('button', { class: 'ghost', onclick: () => {
       const un = full.filter(o => !isDone(o));
       if (!un.length) { toast('Every position at this depth is already solved. Try another depth.'); return; }

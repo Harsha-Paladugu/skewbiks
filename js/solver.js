@@ -59,7 +59,7 @@ function setNota(v) {
       // otherwise the draft-carry sees input ≠ UI.scramble and restores the
       // stale letters, and a re-Solve would silently solve a different position
       const inp = $('#scr-in');
-      if (inp && inp.value.trim() === UI.scramble.trim()) inp.value = conv;
+      if (inp && inp.value === UI.scramble) inp.value = conv;
       UI.scramble = conv;
     }
   }

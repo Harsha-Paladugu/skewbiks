@@ -22,7 +22,7 @@
 <link rel="icon" href="img/logo.svg?v=5b08bb0a" type="image/svg+xml">
 <link rel="apple-touch-icon" href="img/apple-touch-icon.png?v=e94eb1b7">
 <link rel="stylesheet" href="css/site.css?v=02194ec7">
-<link rel="stylesheet" href="css/trainer.css?v=e30393e6">
+<link rel="stylesheet" href="css/trainer.css?v=ba8b1a25">
 </head>
 <body>
 <!-- Shared account layer (site-wide sign in), then the navbar (which auto-mounts
@@ -34,8 +34,8 @@
 <div id="root"></div>
 <!-- Shared puzzle renderer + BFS table cache (same code the rest of the site
      uses for diagrams and the census's distance table). -->
-<script src="js/engine.js?v=7e8f63ad"></script>
-<script src="js/render.js?v=3cde7ca8"></script>
+<script src="js/engine.js?v=703fb411"></script>
+<script src="js/render.js?v=a3851be6"></script>
 <script src="js/tables.js?v=58af5b51"></script>
 <script>
 /* Trainer storage bridge.
@@ -88,7 +88,7 @@
   function boot() {
     if (booted) return; booted = true; bootUid = curUid();
     var s = document.createElement('script');
-    s.src = 'js/trainer.js?v=c3d652ea';
+    s.src = 'js/trainer.js?v=98ea0ebc';
     document.body.appendChild(s);
   }
   if (A && A.whenReady) {

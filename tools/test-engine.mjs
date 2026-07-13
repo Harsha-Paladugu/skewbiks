@@ -264,6 +264,33 @@ t('mirrorAlg: mirrored solution solves the mirrored state', () => {
   return true;
 });
 
+// ---------------- CF predicate (centers solved relative to each other) ----------------
+// Full-space oracles (104,976 raw states / 4,503 census entries, per-depth
+// tables, hold-24 orbit invariance) live in tools/verify-space.mjs.
+let cfWitness = null; // a depth-4 CF state, reused by the invariance test
+t('centersRelSolved: solved is CF, no depth 1-3 state is, depth 4 reaches CF', () => {
+  if (!E.centersRelSolved(E.solved())) return false;
+  let frontier = [E.solved()];
+  for (let len = 1; len <= 4; len++) {
+    const next = [];
+    for (const s of frontier) for (let m = 0; m < 8; m++) { const v = E.copy(s); E.applyMoveIdx(v, m); next.push(v); }
+    frontier = next;
+    const hits = frontier.filter(s => E.centersRelSolved(s) && !E.eq(s, E.solved()));
+    if (len < 4 && hits.length) return false;
+    if (len === 4) { if (!hits.length) return false; cfWitness = hits[0]; }
+  }
+  return true;
+});
+t('centersRelSolved: invariant under all 24 state symmetries (rots + mirrors)', () => {
+  const states = Array.from({ length: 30 }, () => rndState());
+  if (cfWitness) states.push(cfWitness); // guarantee a CF state is exercised
+  for (const s of states) {
+    const v = E.centersRelSolved(s);
+    for (const sym of SYMS.all) if (E.centersRelSolved(E.applySym(sym, s)) !== v) return false;
+  }
+  return true;
+});
+
 // ---------------- keying + alg->case ----------------
 t('caseStateOf: a valid alg yields a self-consistent case state', () => {
   for (let i = 0; i < 20; i++) {

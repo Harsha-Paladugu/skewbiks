@@ -16,6 +16,10 @@
  *     cross-agreement; state-level involution; depth preservation; chirality
  *     preservation (written WCA B lands in the plain/CW one-move class; the
  *     two depth-1 classes are each ι-fixed)
+ *   - the CF subset (centers solved relative to each other, 2026-07-13):
+ *     E.centersRelSolved — 104,976 raw states, 4,503 hold-24 census entries
+ *     with per-depth tables; invariant on every hold-24 orbit and under
+ *     mirrors (what the census's CF browse scope in js/oo.js relies on)
  *   - the corrected census folds (all machine-verified 2026-07-10):
  *     hold-24 fold = 132,315 entries (THE CENSUS — 24 proper rotations,
  *     mirrors separate) with its exact per-depth table; ι fixes 1,956 of the
@@ -251,12 +255,43 @@ check('self-mirror hold-24 entries = 327', selfMirror, 327);
 }
 console.log(`  ι stage done in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
 
+/* ---------------- the CF subset (centers solved relative to each other) ---------------- */
+// E.centersRelSolved: ctr equals one of the 12 tetrad-preserving rotation
+// arrangements (the only reachable ones — ctr is always even, re-holds act
+// oddly on centers). Feeds the census's CF browse scope (js/oo.js T.cfIdx):
+// the predicate must be constant on every hold-24 orbit for rep-testing to
+// classify the entry, and mirror-invariant for the badge to agree pair-wide.
+t0 = Date.now();
+{
+  let raw = 0; const rawCF = new Array(12).fill(0);
+  for (let i = 0; i < dist.length; i++) {
+    if (dist[i] < 0) continue;
+    if (E.centersRelSolved(E.unidx(i))) { raw++; rawCF[dist[i]]++; }
+  }
+  check('raw CF states = 12 × 8,748 = 104,976', raw, 104976);
+  check('raw CF per-depth table', rawCF, [1, 0, 0, 0, 72, 360, 2244, 9588, 36103, 53084, 3484, 40]);
+  const mir0 = SYMS.mirrors[0];
+  let nCF = 0, badOrbit = 0; const cntCF = new Array(12).fill(0);
+  for (const r of entryReps) {
+    const s = E.unidx(r), t = iota(s);
+    const v = E.centersRelSolved(s);
+    for (const sym of SYMS.rots) if (E.centersRelSolved(sym.apply(s)) !== v || E.centersRelSolved(sym.apply(t)) !== v) badOrbit++;
+    if (E.centersRelSolved(mir0.apply(s)) !== v) badOrbit++;
+    if (v) { nCF++; cntCF[dist[r]]++; }
+  }
+  check('centersRelSolved is invariant across every hold-24 orbit and under mirrors', badOrbit, 0);
+  check('CF hold-24 census entries = 4,503', nCF, 4503);
+  check('CF per-depth entry table', cntCF, [1, 0, 0, 0, 4, 16, 99, 407, 1533, 2264, 174, 5]);
+}
+console.log(`  CF stage done in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+
 console.log('');
 console.log('RECORD for downstream milestones:');
 console.log('  index bound (firestore.rules classId/partnerId/pairId): < ' + E.NSLOTS.toLocaleString());
 console.log('  census entries (oo.js copy): 132,315 positions — hold-24 fold (all 24 proper rotations');
 console.log('    incl. re-holds); a position and its LR mirror count separately (righty-tuned solutions)');
 console.log('  pages (pairId = full 48-group fold, the Firestore query key): 66,321, of which 327 single-side');
+console.log('  CF subset (centers relatively solved): 4,503 of the 132,315 entries');
 console.log('  fold ladder: 3,149,280 -> 262,674 (12 rots) -> 132,315 (24 rots, THE CENSUS)');
 console.log('               vs 131,391 (12 rots + mirrors, pre-2026-07-10) -> 66,321 (all 48, the pages)');
 console.log('  RECORD per-depth — depth: hold-24 entries (census) / 12-rot classes / raw states');

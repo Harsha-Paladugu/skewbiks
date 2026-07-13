@@ -5,18 +5,22 @@ deployed trainer**. It builds to `js/trainer.js`, which `trainer.html` serves in
 production. Edit here, rebuild, commit the regenerated `js/trainer.js`.
 
 ## Files
-- `skewb-trainer.jsx` — the trainer React component (UI + persistence): four
-  modes, every case diagram drawn with the solved layer on the bottom (netSVG
-  `pinned`) — Algorithm drill/recap, Full solve (timer + optimal-line/first-layer
-  analysis), Recognition (Full view: y²-coin-flipped diagram, reveal +
+- `skewb-trainer.jsx` — the trainer React component (UI + persistence): three
+  modes, every case diagram drawn with the solved layer on the bottom —
+  recognition diagrams use the Algorithms page's bat-shaped sheet picture
+  (`caseSVG` on the raw pinned facelets, D hidden; USER request 2026-07-13,
+  which also removed the Full solve mode), the drill/one-look diagrams the
+  netSVG `pinned` frame — Algorithm drill/recap, Recognition (Full view:
+  y²-coin-flipped diagram, reveal +
   self-grade with per-case accuracy; Center-cases view: first layer + a chosen
   3-center combo shown at the anchor view, optional 2 random corners,
   multiple-choice + Don't know, auto-graded per-center-case accuracy — answers
   come from `core.quizAnswer`, which resolves the sheets' center-case names
   from the centers the diagram actually shows: EG2's and NS's labels are a
   pure function of the center perm (machine-verified, pinned in test-trainer;
-  EG2's direction-less L5C labels fold into the Pi/Peanut vocabulary and its
-  eight directional U-perm labels condense into a single "U" answer, NS's
+  EG2's direction-less L5C labels fold into the Pi/Peanut vocabulary, its
+  eight directional U-perm labels condense into a single "U" answer and its
+  numbered pairs (O1/O2 … ZC1/ZC2) into their stems — 10 quiz options, NS's
   lumped "H or Z Perm" rows split into H Perm / Z Perm / Solved and its
   unlabeled L4C/L5C cases resolve through the same map), while TCLL's labels
   encode twist/pseudo context and stay authored verbatim), One-look (self-graded
@@ -38,7 +42,7 @@ production. Edit here, rebuild, commit the regenerated `js/trainer.js`.
   geometry (`prependAUF` presentation synthesis — backs recognition's y²
   flip and the one-look reverse lookup; the drill's user-facing view toggles
   were removed), masked scrambles, the
-  first-layer predicate + goal-distance BFS, analysis, one-look sampling
+  first-layer predicate + goal-distance BFS, one-look sampling
   (FL-distance fibers, D-layer states, fixed-solution preimages). Unit-tested
   from Node (`npm run test:trainer`), which is why it is a plain `.mjs` module.
 - `index.jsx` — entry point: mounts `<SkewbTrainer/>` at `#root`, provides a
@@ -68,8 +72,8 @@ without touching real progress, use a private window. Commit the regenerated
   before the bundle: diagrams render through `window.OORender` and the
   scramble distance table comes from `window.OOTables.loadOrBuildDist`
   (IndexedDB `skewbiks-oo`/`oo-dist-v1`, shared with the census — first-ever
-  build ~18 s, instant thereafter). The first-layer table (Full solve analysis
-  + One-look) is built lazily on first use and cached under `trainer-fldist-v1`.
+  build ~18 s, instant thereafter). The first-layer table (One-look) is built
+  lazily on first use and cached under `trainer-fldist-v1`.
 - Styling comes from `css/site.css` + `css/trainer.css` (the same files the
   live page loads); the component carries no inline `<style>`. New
   trainer-only classes live in `css/trainer.css`.

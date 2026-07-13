@@ -3,7 +3,7 @@
  * Asserts the M6 trainer's math against the shared engine: the case model over
  * data/skewb_algs.json (counts, presentation geometry, direction synthesis),
  * masked scrambles (correctness + length window), the first-layer predicate +
- * goal seeds + goal-distance table, and the full-solve analysis.
+ * goal seeds + goal-distance table, and the one-look samplers.
  *
  * Run: node tools/test-trainer.mjs   (exit 0 = OK, 1 = a test failed)
  * Heavier than test-engine: builds TWO full-space BFS tables (dist + FL-dist).
@@ -262,44 +262,13 @@ t('one-look: PHYSICAL execution from the held scramble lands raw(Y), D layer on 
   return true;
 });
 
-// ---------------- analysis ----------------
-t('analyze: direct lines solve; method = FL then finish, total ≥ direct', () => {
-  for (let i = 0; i < 6; i++) {
-    const st = core.randomReachable(dist);
-    const a = core.analyze(st, dist, fldist);
-    if (!a || a.direct !== dist[E.idx(st)]) return false;
-    if (!a.lines.length || a.lines.some((l) => l.moves.length !== a.direct)) return false;
-    const viaLine = applyWca(a.lines[0].alg || "R R'", E.copy(st));
-    if (a.lines[0].alg && E.stateKey(viaLine) !== E.stateKey(E.solved())) return false;
-    if (!a.method || a.method.total < a.direct) return false;
-    if (a.method.flLen !== fldist[E.idx(st)]) return false;
-    let cur = E.copy(st);
-    if (a.method.flAlg) cur = applyWca(a.method.flAlg, cur);
-    if (!core.anyLayerSolved(cur)) return false;
-    if (a.method.finishAlg) cur = applyWca(a.method.finishAlg, cur);
-    if (E.stateKey(cur) !== E.stateKey(E.solved())) return false;
-  }
-  return true;
-});
-t('lineLayerSplit: split point really has a solved layer (when found)', () => {
-  for (let i = 0; i < 40; i++) {
-    const st = core.randomReachable(dist);
-    const a = core.analyze(st, dist, null);
-    if (!a || !a.lines.length) continue;
-    const split = core.lineLayerSplit(st, a.lines[0].moves);
-    if (!split) continue;
-    const cur = E.copy(st);
-    for (let n = 0; n < split.at; n++) E.applyMoveIdx(cur, a.lines[0].moves[n]);
-    if (!core.layerSolved(cur, split.face)) return false;
-  }
-  return true;
-});
 t('exports: DIRS/Y_PREFIX shapes', () =>
   DIRS.length === 4 && Y_PREFIX.length === 4 && Y_PREFIX[0] === '' && Y_PREFIX[2] === 'y2');
 
 // ---------------- partial (3+2) recognition ----------------
-// (masks are raw sticker indices: trainer diagrams render in the engine's
-// pinned frame — netSVG opts.pinned — so raw position == display position)
+// (masks are raw sticker indices: recognition diagrams render the raw pinned
+// facelets — caseSVG(E.toFacelets(st)), the algs-page picture — so raw
+// position == display position)
 t('pickCorners: 2 distinct upper corners', () => {
   for (let i = 0; i < 50; i++) {
     const v = core.pickCorners();
@@ -390,19 +359,24 @@ t('quiz answers: EG2 + NS vocabularies are sig-pure over all 60 center perms', (
   const e = core.centerVocab(subEG2), n = core.centerVocab(subNS);
   return e.pure && e.map.size === 60 && n.pure && n.map.size === 60;
 });
-t('quiz answers: EG2 answers are the authored labels with the U family folded to one U', () =>
+const foldEG2 = (l) => {
+  if (/^U[12][lfrb]?$/.test(l)) return 'U';
+  const m = /^(ZC|TS|[OSWXZ])[12]$/.exec(l);
+  return m ? m[1] : l;
+};
+t('quiz answers: EG2 answers are the authored labels with the U family and numbered pairs folded', () =>
   subEG2.cases.filter((c) => c.corner !== 'L5C')
-    .every((c) => core.quizAnswer(subEG2, c) === (/^U[12][lfrb]?$/.test(c.center) ? 'U' : c.center)));
-t('quiz answers: EG2 vocabulary is 17 options with a single U', () => {
+    .every((c) => core.quizAnswer(subEG2, c) === foldEG2(c.center)));
+t('quiz answers: EG2 vocabulary is exactly the 10 folded options', () => {
   const opts = new Set(core.centerVocab(subEG2).map.values());
-  const us = [...opts].filter((l) => l.includes('U'));
-  return opts.size === 17 && us.length === 1 && us[0] === 'U';
+  const want = ['H', 'O', 'S', 'skip', 'TS', 'U', 'W', 'X', 'Z', 'ZC'];
+  return opts.size === want.length && want.every((l) => opts.has(l));
 });
 t('quiz answers: EG2 L5C resolves into the Pi/Peanut vocabulary (no new options)', () => {
   const l5c = subEG2.cases.filter((c) => c.corner === 'L5C');
   const vocab = new Set(subEG2.cases.filter((c) => c.corner !== 'L5C').map((c) => core.quizAnswer(subEG2, c)));
   if (!l5c.every((c) => vocab.has(core.quizAnswer(subEG2, c)))) return false;
-  const want = { 'L5C U1': 'U', 'L5C U2': 'U', 'L5C Z': 'Z1', 'L5C H': 'skip', 'L5C O1': 'O1' };
+  const want = { 'L5C U1': 'U', 'L5C U2': 'U', 'L5C Z': 'Z', 'L5C H': 'skip', 'L5C O1': 'O' };
   return Object.entries(want).every(([n, a]) => core.quizAnswer(subEG2, byName(subEG2, n)) === a);
 });
 t('quiz answers: NS lumped H-or-Z rows split into H Perm / Z Perm / Solved', () => {
