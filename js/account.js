@@ -16,7 +16,8 @@
  *   OOAccount.signIn()           -> Promise (Google popup in live mode)
  *   OOAccount.signOut()          -> Promise
  *   OOAccount.authBox()          -> a self-updating DOM element for the navbar
- *   OOAccount.loadUserDoc(name)  -> Promise<data|null>   (per-user, keyed field)
+ *   OOAccount.loadUserDoc(name)  -> Promise<data|null>   (keyed field on this
+ *                                   site's users/{uid}/puzzles/{puzzle} doc)
  *   OOAccount.saveUserDoc(name, data) -> Promise
  *   OOAccount.fb                 { app, auth, fs, A, F } in live mode (for oo.js)
  */
@@ -31,6 +32,10 @@
 
   const state = { mode: LIVE ? 'live' : 'demo', ready: false, user: null };
   const fb = { app: null, auth: null, fs: null, A: null, F: null };
+  // Per-user data lives in the shared twistytools project at
+  // users/{uid}/puzzles/{puzzle}, one progress doc per site. The parent
+  // users/{uid} doc is the global account doc; this client never writes it.
+  const userDocRef = () => fb.F.doc(fb.fs, 'users', state.user.uid, 'puzzles', CFG.puzzle || 'skewb');
 
   /* ---------------- live (Firebase) ---------------- */
   async function initLive() {
@@ -56,7 +61,7 @@
     async loadUserDoc(name) {
       if (!state.user) return null;
       try {
-        const snap = await fb.F.getDoc(fb.F.doc(fb.fs, 'users', state.user.uid));
+        const snap = await fb.F.getDoc(userDocRef());
         const data = snap.exists() ? snap.data() : null;
         return data && name in data ? data[name] : null;
       } catch (e) { return null; }
@@ -64,7 +69,7 @@
     async saveUserDoc(name, data) {
       if (!state.user) throw new Error('not signed in');
       await fb.F.setDoc(
-        fb.F.doc(fb.fs, 'users', state.user.uid),
+        userDocRef(),
         { [name]: data, updatedAt: fb.F.serverTimestamp() },
         { merge: true });
     },

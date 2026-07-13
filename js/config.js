@@ -4,13 +4,15 @@
    browser). The apiKey here is a public client identifier, not a secret —
    access is controlled by the Firestore security rules. */
 window.OO_CONFIG = {
+  // Which puzzle this site is. It namespaces this site's Firestore paths in
+  // the shared project (puzzles/skewb/... plus each user's per-puzzle doc).
+  puzzle: 'skewb',
+
   firebase: {
-    apiKey: "AIzaSyBmOQGH9toKetXn4qmy1Gtire52mhOPmh8",
-    authDomain: "skewbiks.firebaseapp.com",
-    projectId: "skewbiks",
-    storageBucket: "skewbiks.firebasestorage.app",
-    messagingSenderId: "276959790417",
-    appId: "1:276959790417:web:c902eb3b39c60d81a4bf70"
+    apiKey: "AIzaSyC5b82XjgZ26GsVvgTO0nCK_KiltQhRozM",
+    authDomain: "twistytools-3bf66.firebaseapp.com",
+    projectId: "twistytools-3bf66",
+    appId: "1:446558622358:web:b99303e5695392108e68b7"
   },
 
   adminEmails: ["harsha.paladugu2@gmail.com"],   // your Google account email

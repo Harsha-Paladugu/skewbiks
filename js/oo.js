@@ -250,6 +250,12 @@ function demoDB() {
 
 function liveDB() {
   let fs, F;                                   // firestore handle + module, taken from OOAccount
+  // The shared twistytools project namespaces each site's census under
+  // puzzles/{puzzle}/... (solutions, meta, moderators, moderatorInvites).
+  // Only admins/{uid} stays top-level: one admin allowlist covers all sites.
+  const PUZ = (window.OO_CONFIG && window.OO_CONFIG.puzzle) || 'skewb';
+  const pdoc = (...s) => F.doc(fs, 'puzzles', PUZ, ...s);
+  const pcol = (n) => F.collection(fs, 'puzzles', PUZ, n);
   let isMod = false, isAdmin = false;          // OO-specific role, derived from the shared auth state
   const subs = new Set(); const notify = () => subs.forEach(f => f());
   const adminEmails = (CFG.adminEmails || []).map(e => e.toLowerCase());
@@ -265,12 +271,17 @@ function liveDB() {
     isAdmin = !!user && (adminDoc || adminEmails.includes((user.email || '').toLowerCase()));
     isMod = isAdmin;
     if (user && !isMod) {
-      try { const m = await F.getDoc(F.doc(fs, 'moderators', user.uid)); isMod = m.exists(); } catch {}
+      try { const m = await F.getDoc(pdoc('moderators', user.uid)); isMod = m.exists(); } catch {}
       if (!isMod) { // accept an invite if one exists for this email
         try {
-          const inv = await F.getDoc(F.doc(fs, 'moderatorInvites', user.email));
+          const email = (user.email || '').toLowerCase();   // invites are keyed by lowercased email
+          const inv = await F.getDoc(pdoc('moderatorInvites', email));
           if (inv.exists()) {
-            await F.setDoc(F.doc(fs, 'moderators', user.uid), { email: user.email, via: 'invite' });
+            await F.setDoc(pdoc('moderators', user.uid), { email, via: 'invite' });
+            // consume the invite so it's single-use: otherwise a later admin
+            // revoke (which deletes moderators/{uid}) would be silently undone by
+            // this same code re-accepting the still-present invite on next load.
+            try { await F.deleteDoc(pdoc('moderatorInvites', email)); } catch {}
             isMod = true;
           }
         } catch {}
@@ -293,13 +304,13 @@ function liveDB() {
       // meta/stats is a derived cache; a stale stored total (e.g. the pre-split
       // 131,391 or the interim 262,674) self-heals at the next approve/recompute
       // — don't write it from page code. The fallback total is the live class count.
-      try { const d = await F.getDoc(F.doc(fs, 'meta', 'stats'));
+      try { const d = await F.getDoc(pdoc('meta', 'stats'));
         return d.exists() ? d.data() : { done: 0, total: T.reps.length };
       } catch { return { done: 0, total: T.reps.length }; }
     },
     async doneMap() {
       try {
-        const d = await F.getDoc(F.doc(fs, 'meta', 'doneMap'));
+        const d = await F.getDoc(pdoc('meta', 'doneMap'));
         return decodeBitmap(d.exists() ? d.data().b64 : '');
       } catch { return decodeBitmap(''); }
     },
@@ -314,29 +325,31 @@ function liveDB() {
     // re-key, and stranded docs can be re-submitted or fixed by hand.
     async pairSolutions(pairId) {
       const out = [];
-      const q1 = F.query(F.collection(fs, 'solutions'),
+      const q1 = F.query(pcol('solutions'),
         F.where('pairId', '==', pairId), F.where('status', '==', 'approved'));
       (await F.getDocs(q1)).forEach(d => out.push({ id: d.id, ...d.data() }));
       if (A.user) {
-        const q2 = F.query(F.collection(fs, 'solutions'),
+        const q2 = F.query(pcol('solutions'),
           F.where('pairId', '==', pairId), F.where('uid', '==', A.user.uid), F.where('status', '==', 'pending'));
         (await F.getDocs(q2)).forEach(d => out.push({ id: d.id, ...d.data() }));
       }
       return out;
     },
     async submit(doc) {
-      await F.addDoc(F.collection(fs, 'solutions'), {
+      await F.addDoc(pcol('solutions'), {
         ...doc, uid: A.user.uid, status: 'pending', createdAt: F.serverTimestamp() });
       notify();
     },
     async pending() {
-      const q = F.query(F.collection(fs, 'solutions'), F.where('status', '==', 'pending'));
+      const q = F.query(pcol('solutions'), F.where('status', '==', 'pending'));
       const out = []; (await F.getDocs(q)).forEach(d => out.push({ id: d.id, ...d.data() }));
       return out;
     },
     async review(id, action) {
       if (action === 'rejected') {
-        await F.updateDoc(F.doc(fs, 'solutions', id), { status: 'rejected', reviewedBy: A.user.email });
+        // reviewedBy is the uid, not the email: approved docs are world-readable,
+        // and the rules bind this field to request.auth.uid.
+        await F.updateDoc(pdoc('solutions', id), { status: 'rejected', reviewedBy: A.user.uid });
         notify(); return;
       }
       // Enforce the per-SIDE cap before approving: query approved docs by pairId
@@ -350,7 +363,7 @@ function liveDB() {
       // approved solution (visible in the UI, deletable by an admin); the
       // bitmap/counter stay consistent because both transactions serialize on
       // the meta docs. Throw CAP so pageMod can explain the block.
-      const preSnap = await F.getDoc(F.doc(fs, 'solutions', id));
+      const preSnap = await F.getDoc(pdoc('solutions', id));
       if (!preSnap.exists() || preSnap.data().status !== 'pending') { notify(); return; }
       // Side integrity, re-checked at approval time (pageMod gates the button on
       // the same test, but a stale queue render must not slip through): the
@@ -362,18 +375,18 @@ function liveDB() {
       const pv = pPair ? verifySolution(pd.solution, pPair, pd.notation === 'ns' ? 'ns' : 'wca') : { ok: false };
       const pSolved = pv.ok ? (pv.side === 'b' && pPair.b ? pPair.b.id : pPair.a.id) : -1;
       if (pSolved !== sideIdOf(pd)) throw new Error('SIDE');
-      const approvedQ = F.query(F.collection(fs, 'solutions'),
+      const approvedQ = F.query(pcol('solutions'),
         F.where('pairId', '==', preSnap.data().pairId), F.where('status', '==', 'approved'));
       let sameSide = 0;
       (await F.getDocs(approvedQ)).forEach(d => { if (sideIdOf(d.data()) === sideIdOf(pd)) sameSide++; });
       if (sameSide >= MAX_SOLUTIONS) throw new Error('CAP');
       // approval: transaction updates the solution, the done bitmap and the counter
       await F.runTransaction(fs, async tx => {
-        const solRef = F.doc(fs, 'solutions', id);
+        const solRef = pdoc('solutions', id);
         const sol = await tx.get(solRef);
         if (!sol.exists() || sol.data().status !== 'pending') return;
         const data = sol.data();
-        const mapRef = F.doc(fs, 'meta', 'doneMap'), statRef = F.doc(fs, 'meta', 'stats');
+        const mapRef = pdoc('meta', 'doneMap'), statRef = pdoc('meta', 'stats');
         const mapDoc = await tx.get(mapRef), statDoc = await tx.get(statRef);
         const bm = decodeBitmap(mapDoc.exists() ? mapDoc.data().b64 : '');
         // Re-derive the side's ordinal from classId via the HOLD-24 entry canon
@@ -387,7 +400,7 @@ function liveDB() {
         let b64 = ''; const CH = 8192;
         for (let i = 0; i < bm.length; i += CH) b64 += String.fromCharCode.apply(null, bm.subarray(i, i + CH));
         b64 = btoa(b64);
-        tx.update(solRef, { status: 'approved', reviewedBy: A.user.email });
+        tx.update(solRef, { status: 'approved', reviewedBy: A.user.uid });
         tx.set(mapRef, { b64 });
         const done = (statDoc.exists() ? statDoc.data().done || 0 : 0) + added;
         tx.set(statRef, { done, total: T.reps.length });
@@ -396,14 +409,14 @@ function liveDB() {
     },
     async mods() {
       const out = [];
-      try { (await F.getDocs(F.collection(fs, 'moderators'))).forEach(d => out.push({ uid: d.id, ...d.data() }));
-        (await F.getDocs(F.collection(fs, 'moderatorInvites'))).forEach(d => out.push({ email: d.id, invite: true, ...d.data() })); } catch {}
+      try { (await F.getDocs(pcol('moderators'))).forEach(d => out.push({ uid: d.id, ...d.data() }));
+        (await F.getDocs(pcol('moderatorInvites'))).forEach(d => out.push({ email: d.id, invite: true, ...d.data() })); } catch {}
       return out;
     },
-    async invite(email) { await F.setDoc(F.doc(fs, 'moderatorInvites', email.toLowerCase()), { addedBy: A.user.email }); notify(); },
+    async invite(email) { await F.setDoc(pdoc('moderatorInvites', email.toLowerCase()), { addedBy: A.user.email }); notify(); },
     async revoke(key) {
-      try { await F.deleteDoc(F.doc(fs, 'moderators', key)); } catch {}
-      try { await F.deleteDoc(F.doc(fs, 'moderatorInvites', key)); } catch {}
+      try { await F.deleteDoc(pdoc('moderators', key)); } catch {}
+      try { await F.deleteDoc(pdoc('moderatorInvites', key)); } catch {}
       notify();
     },
     // Admin repair: rebuild meta/doneMap + meta/stats from the approved
@@ -414,7 +427,7 @@ function liveDB() {
     // class-table change would otherwise leave stale. Full scan of approved
     // docs, client-side: fine at census scale (≤ 2 per position).
     async recompute() {
-      const q = F.query(F.collection(fs, 'solutions'), F.where('status', '==', 'approved'));
+      const q = F.query(pcol('solutions'), F.where('status', '==', 'approved'));
       const bm = new Uint8Array(Math.ceil(T.reps.length / 8));
       let skipped = 0;
       (await F.getDocs(q)).forEach(d => {
@@ -427,8 +440,8 @@ function liveDB() {
       for (let i = 0; i < bm.length; i++) { let x = bm[i]; while (x) { done += x & 1; x >>= 1; } }
       let b64 = ''; const CH = 8192;
       for (let i = 0; i < bm.length; i += CH) b64 += String.fromCharCode.apply(null, bm.subarray(i, i + CH));
-      await F.setDoc(F.doc(fs, 'meta', 'doneMap'), { b64: btoa(b64) });
-      await F.setDoc(F.doc(fs, 'meta', 'stats'), { done, total: T.reps.length });
+      await F.setDoc(pdoc('meta', 'doneMap'), { b64: btoa(b64) });
+      await F.setDoc(pdoc('meta', 'stats'), { done, total: T.reps.length });
       notify();
       return { done, skipped };
     },
@@ -759,11 +772,15 @@ async function pageClass(main, anyId) {
       const partner = pair.self ? sideObj : (v.side === 'a' ? (pair.b || pair.a) : pair.a);
       btn.setAttribute('disabled', '');
       try {
+        // Approved docs are world-readable, so the name is persisted ONLY when
+        // the box is checked; hiding it at render time isn't enough. The rules
+        // deny a create where showName is false and name isn't empty.
+        const showName = nameRow.querySelector('input').checked;
         await DB.submit({
           pairId: pair.pairId, classId: sideObj.id, partnerId: partner.id,
           scramble: sideObj.scramble, solution: ta.value.trim().replace(/\s+/g, ' '),
           notation: NOTA, // the notation the solution text is written in
-          moves: v.moves, name: DB.user.name || DB.user.email, showName: nameRow.querySelector('input').checked,
+          moves: v.moves, name: showName ? (DB.user.name || DB.user.email) : '', showName,
         });
         toast('Thanks! A moderator will review it soon.');
         render();

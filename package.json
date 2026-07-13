@@ -15,8 +15,7 @@
     "test:engine": "node tools/test-engine.mjs",
     "test:trainer": "node tools/test-trainer.mjs",
     "test:solver": "node tools/test-solver.mjs",
-    "test:space": "node tools/verify-space.mjs",
-    "test:rules": "node test/firestore.rules.test.mjs"
+    "test:space": "node tools/verify-space.mjs"
   },
   "dependencies": {
     "react": "^18.3.1",

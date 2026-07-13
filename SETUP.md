@@ -7,10 +7,11 @@ shared solutions/moderation. Without it, everything falls back to localStorage
 
 ## Current state (M4)
 
-The Firebase project **`skewbiks`** exists (Spark plan), its web app's config is
-already in [`js/config.js`](js/config.js), `.firebaserc` pins the project, and
-the security rules are deployed. What remains is console-only (the API can't do
-these on the free plan) — steps 1–3 below.
+The site now runs on the shared **`twistytools-3bf66`** Firebase project (Spark
+plan); its web app's config is already in [`js/config.js`](js/config.js). The
+Firestore security rules are owned and deployed by the hub repo
+(`C:\Projects\twistytools.com`), never from here (step 4). What remains is
+console-only (the API can't do these on the free plan): steps 1–3 below.
 
 ## 1. Create the Firestore database (console-only on Spark)
 
@@ -39,18 +40,15 @@ another Firebase project does not carry over.)
 
 ## 4. Firestore security rules
 
-The rules are version-controlled in [`firestore.rules`](firestore.rules) (wired up
-by [`firebase.json`](firebase.json)) — they are the real authorization boundary
-(`adminEmails` in `config.js` only gates the admin UI). Deploy them with:
-
-```
-firebase deploy --only firestore:rules
-```
-
-(or the Firebase MCP's deploy tool). Rules tests: see the header of
-[`test/firestore.rules.test.mjs`](test/firestore.rules.test.mjs) — deps are
-installed `--no-save`, and the emulator needs `firebase-tools@13` on a Java 17
-machine (14+ wants Java 21).
+The rules are the real authorization boundary (`adminEmails` in `config.js`
+only gates the admin UI), and they are owned by the hub repo: the shared
+project's ruleset is version-controlled, tested, and deployed from
+`C:\Projects\twistytools.com` (`firestore.rules` there, parameterized on
+`puzzles/{puzzle}` so one ruleset covers all three puzzle sites). A rules
+deploy replaces the project's entire ruleset, so exactly one repo may own it.
+That is why this repo deliberately carries no `firestore.rules`,
+`firebase.json`, or `.firebaserc`: a `firebase deploy` must never originate
+here. The rules test suite lives in the hub repo too.
 
 ## Notes
 

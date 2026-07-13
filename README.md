@@ -97,8 +97,8 @@ store.
 - **`tools/check-fresh.mjs`** — re-runs the pipeline and asserts the committed
   generated files + HTML stamps match a clean build (`npm run check:fresh`).
 - **`tools/test-engine.mjs`** — focused engine unit tests (`npm run test:engine`).
-  Firestore-rules tests live in `test/` (`npm run test:rules`, opt-in: needs the
-  Firebase emulator + dev deps).
+  Firestore-rules tests live in the hub repo (`C:\Projects\twistytools.com`),
+  which owns the shared project's ruleset.
 - **`build.mjs`** — esbuild config for the React trainer.
 
 ### Module strategy (why no `"type": "module"`)
