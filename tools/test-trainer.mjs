@@ -262,11 +262,42 @@ t('one-look: PHYSICAL execution from the held scramble lands raw(Y), D layer on 
   return true;
 });
 
+// Every trainer case diagram is caseSVG on the RAW pinned facelets — the
+// algs-page picture, no solver-core in the bundle. Valid because every state
+// the trainer shows through it is D-anchored in the raw frame, pinned here
+// against the solver-core picture oracle (layerDownFacelets): the drill stage
+// and both stats grids draw d = 0, recognition coin-flips d = 0/2 — sole
+// exception "TCLL Twoface- U solved", off-anchor in every frame — and
+// one-look end states are D-solved raw by construction. The d = 1/3 views
+// are NOT all D-anchored (143 TCLL cases rotate): the drill stats grid must
+// keep pinning d = 0 for its legacy directional rows.
+t('diagrams: d=0/2 case states D-anchored raw (sole exception Twoface- U solved); d=1/3 are not all', () => {
+  const rotated = [[], [], [], []];
+  for (const s of model.subsets) for (const c of s.cases) for (let d = 0; d < 4; d++) {
+    const st = core.stateForDir(c, d);
+    if (!st) return false;
+    const pic = SC.layerDownFacelets(st);
+    if (pic.rotated) rotated[d].push(c.name);
+    else if (flKey(pic.fl) !== flKey(E.toFacelets(st))) return false;
+  }
+  return rotated[0].length === 1 && rotated[0][0] === 'Twoface- U solved' &&
+    rotated[2].length === 1 && rotated[2][0] === 'Twoface- U solved' &&
+    rotated[1].length === 143 && rotated[3].length === 143;
+});
+t('diagrams: one-look end states are D-anchored raw (sheet picture = cube in hand)', () => {
+  for (let i = 0; i < 60; i++) {
+    const Y = core.randomDLayerState();
+    const pic = SC.layerDownFacelets(Y);
+    if (pic.rotated || flKey(pic.fl) !== flKey(E.toFacelets(Y))) return false;
+  }
+  return true;
+});
+
 t('exports: DIRS/Y_PREFIX shapes', () =>
   DIRS.length === 4 && Y_PREFIX.length === 4 && Y_PREFIX[0] === '' && Y_PREFIX[2] === 'y2');
 
 // ---------------- partial (3+2) recognition ----------------
-// (masks are raw sticker indices: recognition diagrams render the raw pinned
+// (masks are raw sticker indices: every case diagram renders the raw pinned
 // facelets — caseSVG(E.toFacelets(st)), the algs-page picture — so raw
 // position == display position)
 t('pickCorners: 2 distinct upper corners', () => {

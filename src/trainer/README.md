@@ -6,11 +6,16 @@ production. Edit here, rebuild, commit the regenerated `js/trainer.js`.
 
 ## Files
 - `skewb-trainer.jsx` — the trainer React component (UI + persistence): three
-  modes, every case diagram drawn with the solved layer on the bottom —
-  recognition diagrams use the Algorithms page's bat-shaped sheet picture
-  (`caseSVG` on the raw pinned facelets, D hidden; USER request 2026-07-13,
-  which also removed the Full solve mode), the drill/one-look diagrams the
-  netSVG `pinned` frame — Algorithm drill/recap, Recognition (Full view:
+  modes, every case diagram drawn in the Algorithms page's bat-shaped sheet
+  picture (`caseSVG` on the raw pinned facelets, D hidden, solved layer on the
+  bottom; USER requests 2026-07-13 — recognition first, which also removed the
+  Full solve mode, then the drill stage/stats grid and the one-look reveal;
+  D-anchoring for every shown view pinned in test-trainer against the
+  solver-core picture oracle, the drill stats grid pinning d = 0 because
+  legacy d = 1/3 rows aren't all D-anchored raw). Only the one-look PROBLEM
+  diagram keeps the two-view net: a scrambled state's D face carries
+  information the sheet picture hides — Algorithm drill/recap, Recognition
+  (Full view:
   y²-coin-flipped diagram, reveal +
   self-grade with per-case accuracy; Center-cases view: first layer + a chosen
   3-center combo shown at the anchor view, optional 2 random corners,
@@ -35,8 +40,8 @@ production. Edit here, rebuild, commit the regenerated `js/trainer.js`.
   physical oracle). Rotation tokens and the NS letters F/R/L/f (they move the
   fixed white/red/green corner, whose preimages no scramble text can deliver)
   are rejected at input. Reveal shows the exact post-layer state — its raw
-  frame IS the cube in hand (`fx[UFL] = 0` draws), layer-down via netSVG's
-  `pinned` option — + best-effort case name.
+  frame IS the cube in hand (`fx[UFL] = 0` draws), drawn as the sheet
+  picture — + best-effort case name.
 - `skewb-core.mjs` — the substrate, no React/DOM: case model over
   `data/skewb_algs.json` (fetched at runtime — NOT bundled), presentation
   geometry (`prependAUF` presentation synthesis — backs recognition's y²

@@ -39,21 +39,26 @@ const shuffled = (a) => {
 const statKey = (uid, d) => uid + SEP + d;
 const knownKey = statKey;
 
-// diagram through the shared renderer (default `oonet` class keeps the site's
-// polygon stroke CSS — an overridden class would drop it). `mask` = display
-// facelet indices to hide (partial recognition).
-function Net({ state, w, mask, pinned }) {
-  const html = R && state ? R.netSVG(state, w || 240, { thumb: true, mask, pinned }) : "";
+// the two-view net (shared renderer; default `oonet` class keeps the site's
+// polygon stroke CSS — an overridden class would drop it). Only the one-look
+// PROBLEM diagram still draws it: a scrambled state's D face carries
+// information, and the sheet picture below hides D.
+function Net({ state, w }) {
+  const html = R && state ? R.netSVG(state, w || 240, { thumb: true }) : "";
   return <div className="skewbnet" dangerouslySetInnerHTML={{ __html: html }} />;
 }
 
-// recognition diagrams use the Algorithms page's picture: the community's
+// every case diagram uses the Algorithms page's picture: the community's
 // bat-shaped sheet development (render.js caseSVG, D face hidden), drawn from
-// the raw pinned facelets. Recognition only shows the d = 0/2 views, and those
-// are D-anchored for every sheet case (machine-checked 2026-07-13 against
-// solver-core layerDownFacelets; sole exception "TCLL Twoface- U solved",
-// whose raw frame was equally off-anchor under the old pinned netSVG), so the
-// raw facelets ARE the algs-page picture and mask indices stay display indices.
+// the raw pinned facelets. Every state shown through it is D-anchored in the
+// raw frame, so the raw facelets ARE the algs-page picture and mask indices
+// stay display indices (machine-checked 2026-07-13 against solver-core
+// layerDownFacelets, pinned in test:trainer): the drill stage, recognition
+// and both stats grids show d = 0/2 sheet-case views — sole exception "TCLL
+// Twoface- U solved", whose raw frame was equally off-anchor under the old
+// pinned netSVG — and one-look end states are D-solved raw by construction.
+// The d = 1/3 views are NOT all D-anchored (143 TCLL cases rotate), which is
+// why the drill stats grid pins d = 0 like recognition's missed grid.
 function CaseNet({ state, w, mask }) {
   const html = R && state ? R.caseSVG(E.toFacelets(state), w || 240, { cls: "skewbsvg", mask }) : "";
   return <div className="skewbnet" dangerouslySetInnerHTML={{ __html: html }} />;
@@ -1171,9 +1176,9 @@ export default function SkewbTrainer() {
                   <>
                     <div className="hint" style={{ marginTop: 14 }}>after your layer:</div>
                     <div className="stagegrid recogstage">
-                      {/* end states have fx[UFL] = 0 (core.randomDLayerState), so the
-                          pinned frame IS the cube in hand, solved layer on the bottom */}
-                      <Net state={last.end} w={240} pinned />
+                      {/* end states are D-solved in the raw frame (core.randomDLayerState
+                          draws fx[UFL] = 0), so the sheet picture IS the cube in hand */}
+                      <CaseNet state={last.end} w={240} />
                     </div>
                     <div className="reveal">
                       {last.match && last.match.solved ? (
@@ -1205,8 +1210,7 @@ export default function SkewbTrainer() {
           <div className="stage" onPointerDown={(e) => { e.preventDefault(); trigger(); }}>
             <div className="stagegrid">
               <div className="scramble">{dispAlg(current.scramble)}</div>
-              {/* the case diagram renders layer-down (pinned frame) */}
-              <Net state={current.state} w={240} pinned />
+              <CaseNet state={current.state} w={240} />
             </div>
             <div className={"timer" + (phase === "running" ? " running" : "")}>{fmt(elapsed)}</div>
             {phase === "stopped" && last && last.kind === "drill" ? (
@@ -1380,7 +1384,9 @@ export default function SkewbTrainer() {
                         const c = uidIndex.get(uid);
                         return (
                           <div key={k} className="casecard">
-                            {c ? <Net state={core.stateForDir(c, st.d)} w={120} pinned /> : null}
+                            {/* anchor view like recognition's grid — legacy d = 1/3 rows
+                                aren't all D-anchored raw (the variant heading keeps its d tag) */}
+                            {c ? <CaseNet state={core.stateForDir(c, 0)} w={120} /> : null}
                             <div className="casenums">
                               <span className="mono">{fmt(st.sum / st.n)}</span>
                               <span className="casesub">{st.name}</span>

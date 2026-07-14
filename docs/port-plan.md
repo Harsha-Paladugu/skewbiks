@@ -316,7 +316,17 @@ new Firebase project; domain skewbiks.com (GitHub Pages, CNAME).
     288/5,404 case states rotate but 286 are the never-shown d=1/d=3 views;
     the sole d=0/d=2 exception "TCLL Twoface- U solved" was equally off-anchor
     under the old pinned netSVG) — so masks stay raw sticker indices, no
-    solver-core in the trainer bundle. **Movecount-only scope per USER decision**
+    solver-core in the trainer bundle. **Same-day second USER request: the
+    rest of the trainer's case diagrams too** — the Algorithm drill stage, the
+    drill stats grid and the one-look "after your layer" reveal now draw
+    `caseSVG` as well (the drill stage shows d=0, covered by the check above;
+    one-look end states are D-solved in the raw frame by construction, 0/500
+    off-anchor machine-checked; the stats grid pins d=0 like recognition's
+    missed grid because legacy d=1/3 rows aren't all D-anchored — the 286
+    above, 143 per direction). Only the one-look problem diagram keeps the
+    two-view net: a scrambled state's D face carries information the sheet
+    picture hides. The 4-direction sweep + end-state anchoring, previously a
+    one-off check, are now pinned in test:trainer. **Movecount-only scope per USER decision**
   ("simple movecount metrics; fingertrick metrics later once I speak with top
   solvers; solutions go through the layer — or applicable first step — then an
   algorithm; rotations allowed mid-solve; organize by movecount"), superseding
