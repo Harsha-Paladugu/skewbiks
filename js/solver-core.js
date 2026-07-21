@@ -91,8 +91,8 @@ function makeSolverCore(E, dist, algData) {
   const frameOf = fp => ({ fp, corner: cornerMapOf(fp) });
   const ID_FRAME = frameOf(E.FACE_ID);
   const BYC_FP = {}; for (const A of Object.keys(rotBy.byCorner)) BYC_FP[A] = rotBy.byCorner[A].fp;
-  // native move index -> the axis corner it twists (mirrors engine MOVE_AXIS)
-  const NATIVE_AXIS = ['UBR', 'UBR', 'DBL', 'DBL', 'DFR', 'DFR', 'UFL', 'UFL'];
+  // native move index -> the axis corner it twists
+  const NATIVE_AXIS = E.MOVE_AXIS;
 
   /* ---------- the physical model (facelet space; TNoodle-anchored) ---------- */
   // Letters twist the corner at a FIXED hand position; rotation tokens turn
@@ -102,39 +102,21 @@ function makeSolverCore(E, dist, algData) {
   // reproduced the USER's three physically-executed junction rotations.
   // Corner twists and rotations are facelet perms; the construction is
   // anchored to the TNoodle-validated engine perms (asserted below).
-  const FIDX = { U: 0, R: 1, F: 2, D: 3, L: 4, B: 5 };
-  const FNORM = { U: [0,1,0], R: [1,0,0], F: [0,0,1], D: [0,-1,0], L: [-1,0,0], B: [0,0,-1] };
-  const vkey = v => v.map(Math.round).join(',');
-  const FACE_BY_N = {}; for (const f of FACES) FACE_BY_N[vkey(FNORM[f])] = f;
-  const CORNER_BY_P = {}; for (const c of ALLC) CORNER_BY_P[vkey(E.CPOS[c])] = c;
-  const dot3 = (a, b) => a[0]*b[0] + a[1]*b[1] + a[2]*b[2];
-  const cross3 = (a, b) => [a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]];
-  const cornerFacesOf = c => FACES.filter(f => dot3(FNORM[f], E.CPOS[c]) > 0);
-  const stickerAt = (face, corner) => FIDX[face]*5 + 1 + E.STICKER_POS[face].indexOf(corner);
+  // Geometry primitives come from the engine (single source; exported 2026-07-20).
+  // The independent from-scratch re-derivation that used to live here is now a
+  // test — tools/test-engine.mjs re-derives all 8 corner-twist perms and
+  // asserts them against E.cornerTwistPerm (the port-plan anchor).
+  const { FIDX, FNORM, FACE_BY_N, CORNER_BY_P, vkey } = E;
+  const cornerFacesOf = E.cornerFaces;
+  const stickerAt = E.stickerIdx;
   const ID30 = Array.from({ length: 30 }, (_, i) => i);
-  const pThen = (P, Q) => Q.map(q => P[q]);       // "apply P, then Q" (dst<-src maps)
-  const pInv = P => { const r = new Array(30); for (let i = 0; i < 30; i++) r[P[i]] = i; return r; };
+  const pThen = E.permThen, pInv = E.permInv, pApply = E.applyFaceletPerm;
   const pPow = (P, n) => { let r = ID30; for (let i = 0; i < n; i++) r = pThen(r, P); return r; };
-  const pApply = (fl, P) => P.map(src => fl[src]);
   const flKey = fl => fl.join('');                // facelet colors 0..5 -> 30 chars
   const permKey = p => p.join(',');
-  // all 8 corner-twist perms (the engine ships only the 4 native axis ones)
-  function twistPerm(A) {
-    const p = E.CPOS[A], n = Math.sqrt(3), k = [p[0]/n, p[1]/n, p[2]/n];
-    const ct = -0.5, st = -Math.sqrt(3)/2;        // native direction (TNoodle-pinned)
-    const rot = v => { const kxv = cross3(k, v), kv = dot3(k, v);
-      return [0, 1, 2].map(i => ct*v[i] + st*kxv[i] + (1-ct)*k[i]*kv); };
-    const half = ALLC.filter(c => c === A || E.CPOS[c].filter((v, i) => v === p[i]).length === 2);
-    const map = ID30.slice();
-    for (const f of cornerFacesOf(A)) map[FIDX[FACE_BY_N[vkey(rot(FNORM[f]))]]*5] = FIDX[f]*5;
-    for (const c of half) { const c2 = CORNER_BY_P[vkey(rot(E.CPOS[c]))];
-      for (const f of cornerFacesOf(c)) map[stickerAt(FACE_BY_N[vkey(rot(FNORM[f]))], c2)] = stickerAt(f, c);
-    }
-    return map;
-  }
-  const TWIST = {}; for (const c of ALLC) TWIST[c] = twistPerm(c);
-  for (const A of E.AXIS) if (permKey(TWIST[A]) !== permKey(E.moveFaceletPerm[A])) throw new Error('twist perm mismatch: ' + A);
-  if (permKey(TWIST.DBR) !== permKey(E.WCA_FACELET_MOVES.B)) throw new Error('twist perm mismatch: DBR');
+  // all 8 corner-twist perms (the engine's moveFaceletPerm TABLE covers only
+  // the 4 axis moves; cornerTwistPerm is the same construction for any corner)
+  const TWIST = {}; for (const c of ALLC) TWIST[c] = E.cornerTwistPerm(c);
   // physical whole-cube quarter rotations (WCA sticker movement: x F->U, y F->L, z U->R)
   const rotPermOf = map3 => {
     const m = ID30.slice();

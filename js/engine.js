@@ -127,6 +127,10 @@ function moveFaceletPerm(A) {
   return map; // dst <- src
 }
 const applyFaceletPerm = (fl, map) => map.map(src => fl[src]);
+// generic dst<-src perm algebra over the 30-sticker maps (shared by the
+// solver-core / trainer facelet models)
+const permThen = (P, Q) => Q.map(q => P[q]);   // apply P, then Q
+const permInv = P => { const r = new Array(P.length); for (let i = 0; i < P.length; i++) r[P[i]] = i; return r; };
 
 // ---------------- state, moves (piece tables derived by probing the facelet model) ----------------
 function solved() { return { ctr: [0,1,2,3,4,5], fx: [0,0,0,0], fp: [0,1,2,3], fo: [0,0,0,0] }; }
@@ -197,7 +201,32 @@ function move(s, axisName, prime) {
 }
 const MOVES = ['U',"U'",'L',"L'",'R',"R'",'F',"F'"]; // F = native UFL axis (no WCA letter; see nativeToWCA)
 const MOVE_AXIS = ['UBR','UBR','DBL','DBL','DFR','DFR','UFL','UFL'];
+// axis corner <-> native letter, single declaration (NATIVE_CORNER is derived)
+const NATIVE_LETTER = { UBR:'U', DBL:'L', DFR:'R', UFL:'F' };
+const NATIVE_CORNER = {}; for (const c of Object.keys(NATIVE_LETTER)) NATIVE_CORNER[NATIVE_LETTER[c]] = c;
 function applyMoveIdx(s, m) { return move(s, MOVE_AXIS[m], (m & 1) === 1); }
+
+// optimal descent of a distance-like table (0 = the goal set) from state:
+// repeatedly take a move that lowers the table value, picking the first option
+// (rand falsy) or uniformly among the optimal options (rand truthy). Returns
+// { moves: native move indices, end: the goal state reached }, or null if the
+// state is off-table. Shared by nativeSolution/scrambleMovesTo below and the
+// trainer's goal-table descents (src/trainer/skewb-core.mjs).
+function descend(state, table, rand) {
+  const s = copy(state); const moves = [];
+  let d = table[idx(s)];
+  if (d < 0) return null;
+  while (d > 0) {
+    const opts = [];
+    for (let m = 0; m < MOVES.length; m++) {
+      const t = copy(s); applyMoveIdx(t, m);
+      if (table[idx(t)] === d - 1) opts.push(m);
+    }
+    const m = rand ? opts[Math.floor(Math.random() * opts.length)] : opts[0];
+    applyMoveIdx(s, m); moves.push(m); d--;
+  }
+  return { moves, end: s };
+}
 
 // ---------------- indexing ----------------
 // idx = (evenRank6(ctr)*12 + evenRank4(fp)) * 2187 + twist(3^7: fx0..fx3, fo0..fo2)
@@ -496,16 +525,8 @@ function makeHoldSym(syms) {
   const rotBy = makeFrames(syms);
   // native move indexes (into MOVES) that scramble solved -> state
   function scrambleMovesTo(state, dist) {
-    const s = copy(state); const sol = [];
-    let d = dist[idx(s)];
-    if (d < 0) return null;
-    while (d > 0) {
-      for (let m = 0; m < MOVES.length; m++) {
-        const t = copy(s); applyMoveIdx(t, m);
-        if (dist[idx(t)] === d - 1) { applyMoveIdx(s, m); sol.push(m); d--; break; }
-      }
-    }
-    return sol.reverse().map(m => m ^ 1); // invert the solution, read backwards
+    const r = descend(state, dist, false);
+    return r === null ? null : r.moves.reverse().map(m => m ^ 1); // invert the solution, read backwards
   }
   const iotaOfWord = moves => applyParsed(moves.map(m => _holdTok[m]), solved(), syms, rotBy);
   const iota = (state, dist) => { const w = scrambleMovesTo(state, dist); return w && iotaOfWord(w); };
@@ -565,13 +586,16 @@ const NS_CORNER = { F:'UFL', R:'UFR', B:'UBR', L:'UBL', f:'DFL', r:'DFR', b:'DBR
 const WCA_TO_NS = { R:'r', U:'B', L:'l', B:'b' };
 const amtOf = m => (m === "'" || m === '2') ? 2 : 1;              // order-3 moves
 const rotAmtOf = m => m === "'" ? 3 : (m === '2' || m === "2'") ? 2 : 1; // order-4 rotations
+// rotation token — one regex for both notations (the MOVE regexes below
+// genuinely differ by letter set and stay separate)
+const ROT_RE = /^([xyz])(2'|2|')?$/;
 function parseAlg(str, notation) {
   const ns = notation === 'ns';
   const out = [];
   const toks = String(str).replace(/[()，,]/g, ' ').trim().split(/\s+/).filter(Boolean);
   for (const t of toks) {
     let m;
-    if ((m = t.match(/^([xyz])(2'|2|')?$/))) { out.push({ kind: 'rot', f: m[1], amt: rotAmtOf(m[2]) }); continue; }
+    if ((m = t.match(ROT_RE))) { out.push({ kind: 'rot', f: m[1], amt: rotAmtOf(m[2]) }); continue; }
     if (!ns && (m = t.match(/^([ULRB])(2'|2|')?$/))) { out.push({ kind: 'move', f: m[1], c: WCA_CORNER[m[1]], amt: amtOf(m[2]) }); continue; }
     if (ns && (m = t.match(/^([FRBLfrbl])(2'|2|')?$/))) { out.push({ kind: 'move', f: m[1], c: NS_CORNER[m[1]], amt: amtOf(m[2]) }); continue; }
     return null;
@@ -592,6 +616,17 @@ const XYZ_FP = {
 };
 function frameOf(fp) { return { fp, corner: cornerMapOfFp(fp) }; }
 function frameCompose(a, b) { return frameOf(faceCompose(a.fp, b.fp)); }
+// advance the letter-resolution frame after a WRITTEN free-corner turn: the
+// deep-cut identity leaves a 240°-per-quarter-turn rotation of the real cube
+// about the axis diagonal, so the frame LEFT-composes the native-direction
+// 120° rotation once per quarter turn (direction pinned by TNoodle vectors —
+// see applyParsed's comment). Shared by applyParsed / nativeToWCA /
+// parsedToNative so the walk can never drift between them.
+function walkFrame(frame, ax, amt, rotBy) {
+  const steps = amt % 3;
+  for (let k = 0; k < steps; k++) frame = frameCompose(rotBy.byCorner[ax], frame);
+  return frame;
+}
 function makeFrames(_syms) { // _syms unused — kept for call-signature parity (callers pass syms or null)
   const byCorner = {}; for (const A of AXIS) byCorner[A] = frameOf(G4[A]);
   const xyz = {}; for (const r of ['x','y','z']) xyz[r] = frameOf(XYZ_FP[r]);
@@ -619,8 +654,7 @@ function applyParsed(parsed, state, _syms, rotBy) {
       // wrong corner — caught against the TNoodle fixed-frame vectors.)
       const ax = OPP[phys];
       for (let k = 0; k < t.amt; k++) move(s, ax, false);
-      const steps = t.amt % 3;
-      for (let k = 0; k < steps; k++) frame = frameCompose(rotBy.byCorner[ax], frame);
+      frame = walkFrame(frame, ax, t.amt, rotBy);
     }
   }
   return s;
@@ -630,8 +664,9 @@ function nativeToWCA(alg, rotBy) {
   rotBy = rotBy || makeFrames(null);
   const out = [];
   let frame = rotBy.id;
-  for (const tok of String(alg).trim().split(/\s+/).filter(Boolean)) {
-    const axisName = { U:'UBR', L:'DBL', R:'DFR', F:'UFL' }[tok[0]];
+  const toks = Array.isArray(alg) ? alg : String(alg).trim().split(/\s+/).filter(Boolean);
+  for (const tok of toks) {
+    const axisName = NATIVE_CORNER[tok[0]];
     const amt = tok.length > 1 ? 2 : 1;
     let letter = null;
     for (const w of ['R','U','L']) if (frame.corner[WCA_CORNER[w]] === axisName) { letter = w; break; }
@@ -639,8 +674,7 @@ function nativeToWCA(alg, rotBy) {
       // this axis is currently the opposite of written B's corner -> emit B
       if (OPP[frame.corner[WCA_CORNER.B]] !== axisName) throw new Error('frame resolution failed');
       letter = 'B';
-      const steps = amt % 3; // same frame walk as applyParsed's free-corner branch
-      for (let k = 0; k < steps; k++) frame = frameCompose(rotBy.byCorner[axisName], frame);
+      frame = walkFrame(frame, axisName, amt, rotBy);
     }
     out.push(letter + (amt === 2 ? "'" : ''));
   }
@@ -650,7 +684,6 @@ function nativeToWCA(alg, rotBy) {
 // flatten a parsed token stream to native axis tokens (rotations are absorbed
 // into the frame; free-corner letters via the deep-cut identity). Exactly
 // mirrors applyParsed's move branch, so state effect and movecount agree.
-const NATIVE_LETTER = { UBR:'U', DBL:'L', DFR:'R', UFL:'F' };
 function parsedToNative(parsed, rotBy) {
   rotBy = rotBy || makeFrames(null);
   const out = [];
@@ -663,8 +696,7 @@ function parsedToNative(parsed, rotBy) {
     } else {
       const ax = OPP[phys];
       out.push(NATIVE_LETTER[ax] + (t.amt === 2 ? "'" : ''));
-      const steps = t.amt % 3; // same frame walk as applyParsed's free-corner branch
-      for (let k = 0; k < steps; k++) frame = frameCompose(rotBy.byCorner[ax], frame);
+      frame = walkFrame(frame, ax, t.amt, rotBy);
     }
   }
   return out;
@@ -683,7 +715,7 @@ function wcaToNS(alg) {
 // [y2]-style setups are accepted the same way the WCA path accepts them.
 function nsToWCA(alg) {
   const p = parseAlg(preprocessAlg(alg), 'ns');
-  return p === null ? null : nativeToWCA(parsedToNative(p).join(' '));
+  return p === null ? null : nativeToWCA(parsedToNative(p));
 }
 function convertAlg(alg, from, to) {
   if (from === to) return alg;
@@ -701,7 +733,7 @@ function mirrorToken(t) {
     const map = { U:'U', B:'B', R:'L', L:'R', F:'F', f:'f', b:'b', r:'l', l:'r' };
     return map[m[1]] + (amtOf(m[2]) === 1 ? "'" : '');
   }
-  if ((m = t.match(/^([xyz])(2'|2|')?$/))) {
+  if ((m = t.match(ROT_RE))) {
     const map = { x:'z', y:'y', z:'x' };
     const amt = (4 - rotAmtOf(m[2])) % 4;
     return amt === 0 ? '' : map[m[1]] + (amt === 1 ? '' : amt === 2 ? '2' : "'");
@@ -712,38 +744,28 @@ function mirrorAlg(str) {
   return String(str).trim().split(/\s+/).filter(Boolean).map(mirrorToken).filter(Boolean).join(' ');
 }
 
-// optimal solution from a state via the distance table (random tie-breaks if rand)
+// optimal solution from a state via the distance table (random tie-breaks if
+// rand) — a thin wrapper over descend(), returning native TOKENS
 function nativeSolution(state, dist, rand) {
-  const s = copy(state); const out = [];
-  let d = dist[idx(s)];
-  if (d < 0) return null;
-  while (d > 0) {
-    const opts = [];
-    for (let m = 0; m < MOVES.length; m++) {
-      const t = copy(s); applyMoveIdx(t, m);
-      if (dist[idx(t)] === d - 1) opts.push(m);
-    }
-    const m = rand ? opts[Math.floor(Math.random()*opts.length)] : opts[0];
-    applyMoveIdx(s, m); out.push(MOVES[m]); d--;
-  }
-  return out;
+  const r = descend(state, dist, rand);
+  return r === null ? null : r.moves.map(m => MOVES[m]);
 }
 function optimalSolution(state, dist, rand) {
   const toks = nativeSolution(state, dist, rand);
-  return toks === null ? null : nativeToWCA(toks.join(' '));
+  return toks === null ? null : nativeToWCA(toks);
 }
 function invertAlg(str) {
   // NOTE: written algs containing B (or rotations) do NOT invert across separate
   // applyParsed evaluations (the frame restarts) — only within one token stream.
   // Engine-internal scramble generation therefore inverts at the NATIVE level.
-  return str.split(/\s+/).filter(Boolean).reverse()
-    .map(t => t.endsWith("'") ? t.slice(0, -1) : t + "'").join(' ');
+  const toks = Array.isArray(str) ? str.slice() : str.split(/\s+/).filter(Boolean);
+  return toks.reverse().map(t => t.endsWith("'") ? t.slice(0, -1) : t + "'").join(' ');
 }
 function optimalScramble(state, dist, rand) {
   const toks = nativeSolution(state, dist, rand);
   if (toks === null) return null;
   if (!toks.length) return '';
-  return nativeToWCA(invertAlg(toks.join(' ')));
+  return nativeToWCA(invertAlg(toks));
 }
 
 // ---------------- string keying + alg→case helpers ----------------
@@ -773,7 +795,7 @@ function preprocessAlg(a) {
   // the parser, rather than silently misread as a plain move sequence.
   s = s.replace(/\[([^\[\]]*)\]/g, (m, g) => {
     const toks = g.trim().split(/\s+/).filter(Boolean);
-    return toks.length && toks.every(t => /^[xyz](2'|2|')?$/.test(t)) ? ' ' + toks.join(' ') + ' ' : m;
+    return toks.length && toks.every(t => ROT_RE.test(t)) ? ' ' + toks.join(' ') + ' ' : m;
   });
   s = s.replace(/([ULRBFfrbl])2'/g, '$1');      // order-3: X2' == X (WCA + NS letters)
   return s.trim().replace(/\s+/g, ' ');
@@ -835,15 +857,19 @@ module.exports = {
   centersRelSolved,
   makeHoldSym, makeHold24Canon, makeFull48Canon,
   parseAlg, countMoves, applyParsed, makeFrames, mirrorAlg,
-  optimalSolution, optimalScramble, invertAlg, faceCompose, FACE_ID,
+  optimalSolution, optimalScramble, descend, invertAlg, faceCompose, FACE_ID,
   // notation systems: WCA (default) and NS ("Rubik'skewb", the Sarah/NS sheets)
   wcaToNS, nsToWCA, convertAlg,
   // keying + alg→case (single source of truth)
   stateKey, realCanonKey, keyToState, permsOf, permParity, enumFreeSlots,
   preprocessAlg, inverseState, caseStateOf, algSolvesKey, normAlg, prependAUF,
-  // skewb-specific: geometry + facelet model (renderer, tools, tests)
-  AXIS, FREE, CFACES, STICKER_POS, CPOS, CLASS,
+  // skewb-specific: geometry + facelet model (renderer, tools, tests).
+  // moveFaceletPerm is the AXIS-move TABLE; cornerTwistPerm is the underlying
+  // FUNCTION (works for all 8 corners — the free-corner twists too).
+  AXIS, FREE, CFACES, STICKER_POS, CPOS, CLASS, FIDX, FNORM, MOVE_AXIS, NATIVE_LETTER,
+  vkey, FACE_BY_N, CORNER_BY_P, cornerFaces, stickerIdx, cornerTwistPerm: moveFaceletPerm,
   toFacelets, toFixedFacelets, fromFacelets, solvedFacelets, moveFaceletPerm: MFP, applyFaceletPerm,
+  permThen, permInv,
   WCA_FACELET_MOVES, ROT240_UFL, nativeToWCA,
 };
 

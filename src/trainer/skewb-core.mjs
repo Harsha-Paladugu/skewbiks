@@ -162,28 +162,12 @@ export function createCore(E) {
 
   // ---------- moves / scrambles ----------
   const NMOVES = E.MOVES.length; // 8 native moves; mi>>1 = axis, mi^1 = inverse
-  const toWCA = (mis) => mis.length ? E.nativeToWCA(mis.map((i) => E.MOVES[i]).join(' ')) : '';
+  const toWCA = (mis) => mis.length ? E.nativeToWCA(mis.map((i) => E.MOVES[i])) : '';
 
   // randomized optimal descent of a distance-like table (0 = goal). Returns
-  // native move indices, plus the goal state it lands on.
-  function descend(state, table) {
-    let cur = E.copy(state);
-    let cd = table[E.idx(cur)];
-    if (cd < 0) return null;
-    const path = [];
-    while (cd > 0) {
-      const opts = [];
-      for (let mi = 0; mi < NMOVES; mi++) {
-        const t = E.copy(cur); E.applyMoveIdx(t, mi);
-        if (table[E.idx(t)] === cd - 1) opts.push([mi, t]);
-      }
-      const pick = opts[Math.floor(Math.random() * opts.length)];
-      path.push(pick[0]);
-      cur = pick[1];
-      cd--;
-    }
-    return { moves: path, end: cur };
-  }
+  // native move indices, plus the goal state it lands on. The loop itself is
+  // the engine's shared descend primitive.
+  const descend = (state, table) => E.descend(state, table, true);
 
   // every optimal descent (capped): [{moves, end}]
   function descentLines(state, table, cap) {
@@ -362,9 +346,10 @@ export function createCore(E) {
   //
   // Y is drawn from the D-solved states with fx[UFL] = 0 — the ones whose raw
   // pattern is physically reachable in hand (raw = fixed frame there).
-  const pApplyFl = (fl, P) => P.map((src) => fl[src]);
-  const pThenFl = (P, Q) => Q.map((q) => P[q]); // apply P, then Q (dst<-src maps)
-  const pInvFl = (P) => { const r = new Array(30); for (let i = 0; i < 30; i++) r[P[i]] = i; return r; };
+  // facelet perm algebra comes from the engine (single source)
+  const pApplyFl = E.applyFaceletPerm;
+  const pThenFl = E.permThen;
+  const pInvFl = E.permInv;
   const flEq = (a, b) => a.every((v, i) => v === b[i]);
   const UFL_AX = E.AXIS.indexOf('UFL');
   // physical half-twist perms of the letters the layer vocabulary allows
@@ -417,8 +402,9 @@ export function createCore(E) {
   // a user-chosen 3-center combo, optionally plus 2 random upper corners.
   const RECOG_CENTERS = ['U', 'R', 'F', 'L', 'B'];
   const RECOG_CORNERS = ['UBR', 'UFL', 'UFR', 'UBL'];
-  const AXIS_SLOT = { UBR: 0, UFL: 1 };
-  const FREE_SLOT = { UFR: 0, UBL: 1 };
+  // slot indices derived from the engine's tetrad orders, not hand-copied
+  const AXIS_SLOT = { UBR: E.AXIS.indexOf('UBR'), UFL: E.AXIS.indexOf('UFL') };
+  const FREE_SLOT = { UFR: E.FREE.indexOf('UFR'), UBL: E.FREE.indexOf('UBL') };
   const FL_CORNERS = ['DFR', 'DBL', 'DFL', 'DBR']; // + the D center
 
   function pickCorners() {

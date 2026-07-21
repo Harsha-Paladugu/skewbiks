@@ -128,6 +128,41 @@ t('facelets: structural orders — (R U)=45, (R U\')=30, (R U R\' U\')=6', () =>
   };
   return orderOf('R U') === 45 && orderOf("R U'") === 30 && orderOf("R U R' U'") === 6;
 });
+// Independent from-scratch re-derivation of every corner-twist facelet perm
+// (this construction used to live in js/solver-core.js as its self-check;
+// since solver-core now consumes E.cornerTwistPerm, the independence anchor
+// lives here — port-plan "solver-core anchors to independently derived perms").
+t('facelets: cornerTwistPerm matches an independent geometric re-derivation (all 8 corners)', () => {
+  const FIDX2 = { U:0, R:1, F:2, D:3, L:4, B:5 };
+  const FN = { U:[0,1,0], R:[1,0,0], F:[0,0,1], D:[0,-1,0], L:[-1,0,0], B:[0,0,-1] };
+  const dot3 = (a,b) => a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
+  const cross3 = (a,b) => [a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]];
+  const vk = v => v.map(Math.round).join(',');
+  const faces = Object.keys(FN);
+  const FBN = {}; for (const f of faces) FBN[vk(FN[f])] = f;
+  const corners = Object.keys(E.CPOS);
+  const CBP = {}; for (const c of corners) CBP[vk(E.CPOS[c])] = c;
+  const cfs = c => faces.filter(f => dot3(FN[f], E.CPOS[c]) > 0);
+  const stk = (f, c) => FIDX2[f]*5 + 1 + E.STICKER_POS[f].indexOf(c);
+  const derive = (A) => {
+    const p = E.CPOS[A], n = Math.sqrt(3), k = [p[0]/n, p[1]/n, p[2]/n];
+    const ct = -0.5, st = -Math.sqrt(3)/2;   // native direction (TNoodle-pinned)
+    const rot = v => { const kxv = cross3(k, v), kv = dot3(k, v);
+      return [0,1,2].map(i => ct*v[i] + st*kxv[i] + (1-ct)*k[i]*kv); };
+    const half = corners.filter(c => c === A || E.CPOS[c].filter((v,i) => v === p[i]).length === 2);
+    const map = Array.from({ length: 30 }, (_, i) => i);
+    for (const f of cfs(A)) map[FIDX2[FBN[vk(rot(FN[f]))]]*5] = FIDX2[f]*5;
+    for (const c of half) { const c2 = CBP[vk(rot(E.CPOS[c]))];
+      for (const f of cfs(c)) map[stk(FBN[vk(rot(FN[f]))], c2)] = stk(f, c);
+    }
+    return map;
+  };
+  for (const c of corners)
+    if (derive(c).join() !== E.cornerTwistPerm(c).join()) return false;
+  for (const A of E.AXIS)
+    if (E.cornerTwistPerm(A).join() !== E.moveFaceletPerm[A].join()) return false;
+  return E.cornerTwistPerm('DBR').join() === E.WCA_FACELET_MOVES.B.join();
+});
 t('facelets: to/fromFacelets round-trip on random states', () => {
   for (let i = 0; i < 200; i++) {
     const s = rndState();

@@ -127,7 +127,10 @@ const iota = s => HOLD.iota(s, dist);
 const FACES = ['U','R','F','D','L','B'];
 const FIDX = { U:0, R:1, F:2, D:3, L:4, B:5 };
 const ALLC = Object.keys(E.CPOS);
+// deliberately re-declared: this tool INDEPENDENTLY verifies the engine, so it
+// keeps its own copy — cross-checked against the engine's export right here.
 const MOVE_AXIS = ['UBR','UBR','DBL','DBL','DFR','DFR','UFL','UFL'];
+if (MOVE_AXIS.join() !== E.MOVE_AXIS.join()) { console.error('MOVE_AXIS diverged from the engine'); process.exit(1); }
 const stickerIdx = (f, c) => FIDX[f]*5 + 1 + E.STICKER_POS[f].indexOf(c);
 const cornerByFaces = new Map(ALLC.map(c => [E.CFACES[c].slice().sort().join(''), c]));
 const cornerMapOf = fp => { const m = {};
