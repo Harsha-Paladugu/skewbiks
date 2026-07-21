@@ -93,11 +93,17 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // Derived caches (doneMap bitmap, stats counters) rebuilt from the approved
+    // solution docs — public to read so signed-out browsing works; any moderator
+    // may write since every write is a recomputation, not user data.
     match /meta/{doc} {
       allow read: if true;
       allow write: if isMod();
     }
 
+    // Moderator roster: isMod() trusts membership here. Self-create is allowed
+    // only when a matching invite doc exists for the signer's email (the invite
+    // acceptance flow); admins manage the rest.
     match /moderators/{uid} {
       allow read: if isAdmin() || (request.auth != null && request.auth.uid == uid);
       allow create: if isAdmin()
@@ -106,6 +112,8 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // Pending moderator invites, keyed by invitee email; readable by the
+    // invitee (to accept) and admins (to manage), created/revoked by admins.
     match /moderatorInvites/{email} {
       allow read: if isAdmin() || (request.auth != null && request.auth.token.email == email);
       allow create, delete: if isAdmin();

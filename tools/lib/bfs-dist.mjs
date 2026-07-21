@@ -1,7 +1,8 @@
 /* Pyraminx.net — shared Node-side BFS distance-table builder.
  *
  * One source for the full-state-space optimal-distance table used by the dev
- * tools (tools/test-engine.mjs, tools/solver-lab.mjs) — the same table the
+ * tools (tools/test-engine.mjs, tools/test-solver.mjs, tools/test-trainer.mjs,
+ * tools/verify-space.mjs, tools/solver-lab.mjs) — the same table the
  * browser builds in js/tables.js (which stays separate: it adds progress
  * reporting and IndexedDB caching that the tools don't want).
  *

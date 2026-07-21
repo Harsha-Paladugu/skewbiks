@@ -326,7 +326,9 @@ new Firebase project; domain skewbiks.com (GitHub Pages, CNAME).
     above, 143 per direction). Only the one-look problem diagram keeps the
     two-view net: a scrambled state's D face carries information the sheet
     picture hides. The 4-direction sweep + end-state anchoring, previously a
-    one-off check, are now pinned in test:trainer. **Movecount-only scope per USER decision**
+    one-off check, are now pinned in test:trainer.
+- [x] **M7 — Solver** (2026-07-07; finish-index + reconstruction work through
+  2026-07-10). **Movecount-only scope per USER decision**
   ("simple movecount metrics; fingertrick metrics later once I speak with top
   solvers; solutions go through the layer — or applicable first step — then an
   algorithm; rotations allowed mid-solve; organize by movecount"), superseding
@@ -558,7 +560,7 @@ new Firebase project; domain skewbiks.com (GitHub Pages, CNAME).
   final, pre-announce checklist (deployed-rules diff, Firebase authorized domains incl.
   skewbiks.com, OG cards).
 
-## Remaining plan + review carry-items (2026-07-03 — read before starting M5)
+## Review carry-items (2026-07-03; historical — every milestone below has landed)
 
 Standing goals for the rest of the port: (1) main is always committed and green at
 its own milestone's bar; (2) each milestone deletes its own Pyraminx leftovers

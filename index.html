@@ -24,7 +24,9 @@
 <link rel="stylesheet" href="css/site.css?v=02194ec7">
 <link rel="stylesheet" href="css/home.css?v=4a1b1dd4">
 <script>
-/* old links: the OO census used to live at index.html — forward its hash routes */
+/* forward census hash routes to oo.html (inherited from upstream pyraminx.net,
+   where the census once lived at index.html; kept for layout parity and so any
+   pasted census link with a hash still lands on the right page) */
 if (/^#\/(c\/|browse|mod|about)/.test(location.hash)) location.replace('oo.html' + location.hash);
 </script>
 </head>

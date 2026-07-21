@@ -282,6 +282,9 @@ TNoodle-validated perms: per text it indexes Φ⁻¹ of the 24 solved orientatio
 junctions under 24 rotations, and derives every display rotation there — spelled in SHEET
 letters (sheet x/y/z = physical z/y/x′ — the letters this community reads; engine letters
 are INTERNAL and never displayed) — re-proving every displayed line by a facelet check.
+**Current numbers (2026-07-10, authoritative): finish coverage under the sheet-letter
+reading is 3,109/3,110 fl, 11,964/11,964 tcll, 3,204/3,204 eg2 — essentially complete;
+the paragraphs below keep the dated history of how earlier measurements were superseded.**
 Coverage under the physical model measured count-identical to the old engine-frame index
 at the time (2,733 / 10,392 / 3,180 on 2026-07-07 — the match relation agreed, the printed
 rotations did not); BOTH of those measurements were under the engine-letter misread of
@@ -360,9 +363,9 @@ WCA letter (free-corner/UFL twists; verified: NS `R` = WCA `x2 B x2`, `f` = `y2 
 `z2 B z2`, `F` = the native UFL half-twist). NS → WCA therefore converts through the native
 stream (`parsedToNative` + `nativeToWCA`): same state, same movecount, input rotations
 absorbed. The x+z=0 mirror uses ONE letter map for both systems: U→U′, B→B′, F→F′, f→f′,
-b→b′, R↔L and r↔l with prime flips. Local reference copies of the TNoodle sources and the two
-verification scripts live outside the repo (GPL; do not commit): see the session scratchpad
-(`SkewbSolver.java`, `SkewbPuzzle.java`, `skewb-vectors.mjs`, `skewb-verify.mjs`).
+b→b′, R↔L and r↔l with prime flips. The TNoodle reference sources are GPL and must not be
+committed; fetch `SkewbSolver.java`/`SkewbPuzzle.java` from tnoodle-lib at the pinned commit
+`3688c663` (the header of this doc) to re-run any verification.
 
 ## OO census persistence formats (FROZEN 2026-07-03, M4)
 

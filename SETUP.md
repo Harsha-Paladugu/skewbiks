@@ -5,12 +5,14 @@ sync of per-user data (trainer progress, solver prefs), and the OO census's
 shared solutions/moderation. Without it, everything falls back to localStorage
 ("demo mode").
 
-## Current state (M4)
+## Current state — setup COMPLETE (2026-07-06)
 
 The Firebase project **`skewbiks`** exists (Spark plan), its web app's config is
-already in [`js/config.js`](js/config.js), `.firebaserc` pins the project, and
-the security rules are deployed. What remains is console-only (the API can't do
-these on the free plan) — steps 1–3 below.
+in [`js/config.js`](js/config.js), `.firebaserc` pins the project, the security
+rules are deployed, and the console-only steps below (Firestore database, Google
+sign-in, first-admin bootstrap) were **all completed on 2026-07-06** — the
+census backend is live. This document stays as the reference walkthrough for
+recreating the setup (e.g. a new Firebase project or a fresh admin).
 
 ## 1. Create the Firestore database (console-only on Spark)
 

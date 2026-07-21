@@ -18,7 +18,9 @@ npm run stamp         # rewrite each asset's ?v= query to its content hash (tool
 npm run check         # verify the shipped js/sheet.js against the engine (alias: npm test)
 npm run check:fresh   # re-run the pipeline; fail if js/sheet.js, js/trainer.js or any HTML stamp is stale
 npm run test:engine   # engine unit tests (tools/test-engine.mjs)
+npm run test:solver   # solver-core physical-model + finish-index tests (tools/test-solver.mjs)
 npm run test:trainer  # trainer substrate tests (tools/test-trainer.mjs) — builds TWO full BFS tables, slow-ish
+npm run test:space    # full state-space enumeration + census-count pins (tools/verify-space.mjs) — slow
 npm run test:rules    # Firestore rules emulator tests (opt-in: needs the emulator + dev deps)
 
 node tools/compile-sheet.mjs --check   # dry-run compile + report; never writes js/sheet.js
@@ -26,7 +28,7 @@ node tools/compile-sheet.mjs --check   # dry-run compile + report; never writes 
 
 The esbuild step lives in `build.mjs` at the repo root (entry `src/trainer/index.jsx` → `js/trainer.js`); there is no separate `build:trainer`-only esbuild script — `node build.mjs` is it.
 
-- There is **no unit-test framework**, but three dependency-light test runners exist. `npm test` is aliased to `tools/check-sheet.mjs` (validates the compiled data sheet only). `npm run test:engine` (`tools/test-engine.mjs`) asserts engine invariants — alg parse/notation, mirror/inverse symmetry, `realCanonKey` stability, the optimal BFS solver. `npm run test:trainer` (`tools/test-trainer.mjs`) asserts the trainer substrate (`src/trainer/skewb-core.mjs`) — case model over the JSON, presentation synthesis, masked scrambles, the first-layer predicate/goal tables. `npm run test:rules` (`test/firestore.rules.test.mjs`) is opt-in and needs the Firebase emulator + dev deps. To exercise the engine ad-hoc in Node, replicate what the tools do: `globalThis.window = {}; require('./js/engine.js'); const E = globalThis.window.OOEngine;` (see the "module strategy" gotcha below).
+- There is **no unit-test framework**, but several dependency-light test runners exist. `npm test` is aliased to `tools/check-sheet.mjs` (validates the compiled data sheet only). `npm run test:engine` (`tools/test-engine.mjs`) asserts engine invariants — alg parse/notation, mirror/inverse symmetry, `realCanonKey` stability, the optimal BFS solver. `npm run test:solver` (`tools/test-solver.mjs`) asserts the solver-core physical model, finish index and reconstruction display (the sheet-line sweep counts are pins). `npm run test:trainer` (`tools/test-trainer.mjs`) asserts the trainer substrate (`src/trainer/skewb-core.mjs`) — case model over the JSON, presentation synthesis, masked scrambles, the first-layer predicate/goal tables. `npm run test:space` (`tools/verify-space.mjs`) re-enumerates the state space and pins the census/CF counts. `npm run test:rules` (`test/firestore.rules.test.mjs`) is opt-in and needs the Firebase emulator + dev deps. To exercise the engine ad-hoc in Node, replicate what the tools do: `globalThis.window = {}; require('./js/engine.js'); const E = globalThis.window.OOEngine;` (see the "module strategy" gotcha below).
 - **To preview the site locally you must serve over HTTP** (e.g. `npx serve` or `python -m http.server`), not `file://` — `js/account.js` uses dynamic `import()` and the OO/Algorithms pages `fetch` the JSON, both of which need an origin.
 
 ## Generated files — do not hand-edit
