@@ -380,7 +380,6 @@ function symFromFacePerm(fp, mirror) {
   };
 }
 function applySym(sym, s) { return sym.apply(s); }
-function composeSym(a, b) { return symFromFacePerm(faceCompose(a.fp, b.fp), a.mirror !== b.mirror); }
 // generate the 12 tetrad-preserving rotations + the 12 mirror images
 const G4 = {}; // axis-corner rotation face perms (native-move direction)
 for (const A of AXIS) { const rot = rotAboutCorner(A); const m = {}; for (const f of FACES) m[f] = FACE_BY_N[vkey(rot(FNORM[f]))]; G4[A] = m; }
@@ -593,7 +592,7 @@ const XYZ_FP = {
 };
 function frameOf(fp) { return { fp, corner: cornerMapOfFp(fp) }; }
 function frameCompose(a, b) { return frameOf(faceCompose(a.fp, b.fp)); }
-function makeFrames(_syms) {
+function makeFrames(_syms) { // _syms unused — kept for call-signature parity (callers pass syms or null)
   const byCorner = {}; for (const A of AXIS) byCorner[A] = frameOf(G4[A]);
   const xyz = {}; for (const r of ['x','y','z']) xyz[r] = frameOf(XYZ_FP[r]);
   return { id: frameOf(FACE_ID), byCorner, xyz };
@@ -786,18 +785,18 @@ function inverseState(X) {
   for (let q = 0; q < 4; q++) { const p = X.fp[q]; s.fp[p] = q; s.fo[p] = (3 - X.fo[q] % 3) % 3; }
   return s;
 }
-let _syms = null, _rotBy = null;
+let _rotBy = null;   // lazy: the keying helpers only need the frame tables, not the 24 sym tables
 function _keyEnsure() {
-  if (_syms) return;
-  _syms = buildSyms(); _rotBy = makeFrames(_syms);
+  if (_rotBy) return;
+  _rotBy = makeFrames(null);
 }
 // the exact state an alg solves, or null if it doesn't parse / doesn't solve cleanly
 function caseStateOf(algStr) {
   _keyEnsure();
   const p = parseAlg(preprocessAlg(algStr));
   if (!p) return null;
-  const cs = inverseState(applyParsed(p, solved(), _syms, _rotBy));
-  const back = applyParsed(p, copy(cs), _syms, _rotBy);
+  const cs = inverseState(applyParsed(p, solved(), null, _rotBy));
+  const back = applyParsed(p, copy(cs), null, _rotBy);
   return eq(back, solved()) ? cs : null;
 }
 // display normalization: collapse adjacent identical face turns (R R -> R2, R' R' -> R2')
@@ -826,11 +825,11 @@ function algSolvesKey(algStr, key) {
   _keyEnsure();
   const p = parseAlg(preprocessAlg(algStr));
   if (!p) return false;
-  return eq(applyParsed(p, keyToState(key), _syms, _rotBy), solved());
+  return eq(applyParsed(p, keyToState(key), null, _rotBy), solved());
 }
 
 module.exports = {
-  FACES, S4, G4, OPP, MOVES, NSLOTS,
+  FACES, G4, OPP, MOVES, NSLOTS,
   solved, copy, eq, move, applyMoveIdx, idx, unidx,
   buildSyms, symFromFacePerm, applySym, makeCanon, makeMirrorCanon, makeFullCanon,
   centersRelSolved,
@@ -843,7 +842,7 @@ module.exports = {
   stateKey, realCanonKey, keyToState, permsOf, permParity, enumFreeSlots,
   preprocessAlg, inverseState, caseStateOf, algSolvesKey, normAlg, prependAUF,
   // skewb-specific: geometry + facelet model (renderer, tools, tests)
-  AXIS, FREE, CFACES, STICKER_POS, CPOS, WCA_CORNER, CLASS,
+  AXIS, FREE, CFACES, STICKER_POS, CPOS, CLASS,
   toFacelets, toFixedFacelets, fromFacelets, solvedFacelets, moveFaceletPerm: MFP, applyFaceletPerm,
   WCA_FACELET_MOVES, ROT240_UFL, nativeToWCA,
 };
