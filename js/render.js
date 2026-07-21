@@ -15,11 +15,9 @@
 // pinned frame, which after any written B is the real cube rotated about the
 // UFL–DBR diagonal — rendering that made B look like a UFL twist.) The
 // renderer carries no move/twist logic of its own.
-// Browser loads engine.js first (window.OOEngine). Node tools stub
-// globalThis.window before requiring engine.js for its side effect.
-const E = (typeof window !== 'undefined' && window.OOEngine) ? window.OOEngine
-  : (typeof globalThis !== 'undefined' && globalThis.window && globalThis.window.OOEngine) ? globalThis.window.OOEngine
-  : (typeof require !== 'undefined' ? require('./engine.js') : null);
+// engine.js always loads first — via script order in the browser, via the
+// window stub in the Node tools — so this resolves in both environments.
+const E = window.OOEngine;
 
 // WCA scheme (TNoodle default), dark-theme adjusted to the site palette
 const COLORS = { U:'#e8edf6', R:'#3a7fe8', F:'#e8473d', D:'#f2cf3c', L:'#3fbf52', B:'#f28c3c' };
@@ -124,9 +122,11 @@ function netSVG(state, width, opts) {
   // reveal); the tradeoff is that the fixed UFL corner may read twisted.
   const fl = o.pinned ? E.toFacelets(state) : E.toFixedFacelets(state);
   const mask = o.mask ? (o.mask instanceof Set ? o.mask : new Set(o.mask)) : null;
+  // caption styling is owned by css/site.css (.oonet .dcap) — CSS always beats
+  // SVG presentation attributes, so none are set here
   const caps = o.thumb ? '' :
-    `<text x="0" y="2.05" class="dcap" font-size="0.24" fill="#9fadc4" text-anchor="middle">front</text>` +
-    `<text x="3.7" y="2.05" class="dcap" font-size="0.24" fill="#9fadc4" text-anchor="middle">back</text>`;
+    `<text x="0" y="2.05" class="dcap" text-anchor="middle">front</text>` +
+    `<text x="3.7" y="2.05" class="dcap" text-anchor="middle">back</text>`;
   return `<svg viewBox="-1.8 -1.8 7.3 4" width="${width}" height="${Math.round(width * 4 / 7.3)}" class="${o.cls || 'oonet'}" role="img" aria-label="puzzle state, front and back views">` +
     renderView(fl, M_FRONT, 0, 0, mask) + renderView(fl, M_BACK, 3.7, 0, mask) + caps + '</svg>';
 }
