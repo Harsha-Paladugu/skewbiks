@@ -143,7 +143,6 @@
   // surviving (not tombstoned) alg that parses to a clean case state:
   //   pks[p]   = render key of the case seen at presentation offset p from the
   //              anchor's own view (prependAUF(p, anchor))
-  //   canons   = the case's canonical keys (≤ 2: Front/Back + Right/Left)
   //   anchorDir= the anchor's authored direction (labels pks[0]); Front if unset
   // KEEP IN SYNC: src/trainer/skewb-core.mjs maintains its own copy of this
   // case-model layer (casePres / nav comparator / buildModel) — deliberately,
@@ -156,18 +155,17 @@
     const ov = overrides.get(id);
     const removed = (ov && ov.removed) || new Set();
     const pool = [...c.algs.filter(a => !removed.has(a.alg)), ...((ov && ov.added) || [])];
-    let out = { pks: null, canons: new Set(), cls: null, anchorDir: 'Front' };
+    let out = { pks: null, cls: null, anchorDir: 'Front' };
     for (const a of pool) {
       const core = stripPostRot(E.normAlg(a.alg));
       const cs = caseStateOf(core);
       if (!cs) continue;
-      const pks = [], canons = new Set();
+      const pks = [];
       let ok = true;
       for (let p = 0; p < 4; p++) {
         const st = p === 0 ? cs : caseStateOf(prependAUF(p, core));
         if (!st) { ok = false; break; }
         pks.push(stateKey(st));
-        canons.add(realCanonKey(st));
       }
       if (!ok) continue;
       // the case's full 12-rotation class — the sheets' cases are
@@ -176,7 +174,7 @@
       let cls = null;
       if (CORE) { cls = new Set(); for (const rot of CORE.syms.rots) cls.add(stateKey(rot.apply(cs))); }
       const dir = a.side || a.direction; // added rows carry `side`, baseline `direction`
-      out = { pks, canons, cls, anchorDir: DIRS.includes(dir) ? dir : 'Front' };
+      out = { pks, cls, anchorDir: DIRS.includes(dir) ? dir : 'Front' };
       break;
     }
     presCache.set(id, out);
@@ -195,7 +193,7 @@
   function makeRow(a, source) {
     const core = stripPostRot(E.normAlg(a.alg));
     const cs = caseStateOf(core);
-    return { alg: a.alg, meta: a, source, core, state: cs, display: core, solves: !!cs };
+    return { alg: a.alg, meta: a, source, core, state: cs, solves: !!cs };
   }
   // Sheet algs display the line a human executes FROM THE PICTURE: the
   // authored text verbatim whenever it already physically solves from the
@@ -209,24 +207,23 @@
   const rowLine = (r) => {
     if (r.line === undefined)
       r.line = (r.pic && CORE)
-        ? CORE.sheetLineFor(r.pic.fl, (r.meta && r.meta.ns) ? r.meta.ns : r.display, (r.meta && r.meta.ns) ? 'ns' : 'wca')
+        ? CORE.sheetLineFor(r.pic.fl, (r.meta && r.meta.ns) ? r.meta.ns : r.core, (r.meta && r.meta.ns) ? 'ns' : 'wca')
         : null;
     return r.line;
   };
   const rowText = (r) => {
     const line = rowLine(r);
     if (line && line.ok) return (r.meta && r.meta.ns) ? line.text : dispAlg(line.text);
-    return (r.meta && r.meta.ns) ? r.meta.ns : dispAlg(r.display);
+    return (r.meta && r.meta.ns) ? r.meta.ns : dispAlg(r.core);
   };
   // an authored text we could not adjust to a ROTATED picture (slash texts):
   // shown as authored, flagged so the reader knows it runs from another hold
   const rowUnadjusted = (r) => { const line = rowLine(r); return !!(line && !line.ok && r.pic && r.pic.rotated); };
   // alg text as evenly-spaced tokens, rotations tinted so the regrips pop
-  const isRotTok2 = (t) => /^[xyz](2'|2|')?$/.test(t);
   function algText(r) {
     return h('span', { class: 'mono alg' },
       String(rowText(r)).split(/\s+/).filter(Boolean).map(t =>
-        h('span', { class: isRotTok2(t) ? 'tok rot' : 'tok' }, t)));
+        h('span', { class: isRotTok(t) ? 'tok rot' : 'tok' }, t)));
   }
 
   // ---------- first moves ----------

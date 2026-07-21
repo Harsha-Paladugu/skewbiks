@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { createCore, DIRS, Y_PREFIX, SEP, rateRank, SOL_EXAMPLES } from "./skewb-core.mjs";
+import { createCore, DIRS, Y_PREFIX, SEP, SOL_EXAMPLES } from "./skewb-core.mjs";
 
 // ============================================================
 // Skewbiks trainer — three tools over the imported method sheets
@@ -37,7 +37,7 @@ const shuffled = (a) => {
   return arr;
 };
 const statKey = (uid, d) => uid + SEP + d;
-const knownKey = statKey;
+const knownKey = statKey; // same shape as statKey: KNOWN marks live at uid␟0 (the per-direction dimension was retired; 0 is the fixed digit)
 
 // the two-view net (shared renderer; default `oonet` class keeps the site's
 // polygon stroke CSS — an overridden class would drop it). Only the one-look
@@ -776,7 +776,6 @@ export default function SkewbTrainer() {
     const sub = model().subsets.find((s) => s.key === subKey);
     const [grp, setGrp] = useState(sub.groups[0] ? sub.groups[0].value : "");
     const [filter, setFilter] = useState("");
-    if (!sub) return null;
     const g = sub.groups.find((x) => x.value === grp) || sub.groups[0];
     const filterField = sub.nav && sub.nav.filter && sub.nav.filter.field;
     const filterVals = filterField ? [...new Set(g.cases.map((c) => c[filterField]).filter((v) => v != null))] : [];

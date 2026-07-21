@@ -22,11 +22,11 @@ export const DIRS = ['Front', 'Right', 'Back', 'Left'];
 export const Y_PREFIX = ['', 'y', 'y2', "y'"]; // rotation chip for a k-quarter offset
 export const SEP = '\u001f';                   // id separator (case names are free-form)
 
-export const RATING_RANK = { best: 0, neutral: 1, poor: 3 };
+const RATING_RANK = { best: 0, neutral: 1, poor: 3 };
 export const rateRank = (a) => (a && RATING_RANK[a.rating] !== undefined) ? RATING_RANK[a.rating] : 2;
 
 const isRotTok = (t) => /^[xyz](2'|2|')?$/.test(t);
-export function stripPostRot(alg) { // trailing whole-cube rotations are cosmetic
+function stripPostRot(alg) { // trailing whole-cube rotations are cosmetic
   const toks = String(alg).trim().split(/\s+/).filter(Boolean);
   while (toks.length && isRotTok(toks[toks.length - 1])) toks.pop();
   return toks.join(' ');
@@ -39,7 +39,6 @@ export function stripPostRot(alg) { // trailing whole-cube rotations are cosmeti
 export const SOL_EXAMPLES = { ns: "r' b l", wca: "R' B L" };
 
 // The sheets' first-move letter convention (see js/algs.js / import-method-sheets.mjs).
-export const FM_ORDER = ['r', "r'", 'R', "R'", 'B', "B'", 'b', "b'"];
 const SHEET_FM = { R: 'B', U: 'b', L: 'r', B: 'R' };
 
 export function createCore(E) {
