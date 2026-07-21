@@ -1,4 +1,4 @@
-/* Pyraminx.net — shared Node-side BFS distance-table builder.
+/* Skewbiks.com — shared Node-side BFS distance-table builder.
  *
  * One source for the full-state-space optimal-distance table used by the dev
  * tools (tools/test-engine.mjs, tools/test-solver.mjs, tools/test-trainer.mjs,

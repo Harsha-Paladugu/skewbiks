@@ -1,5 +1,6 @@
-/* Skewbiks.com — Method solver app. Expects OOEngine, OORender, OOSolverCore, SiteNavbar. */
-/* Skewb OO — Solver tab app. Expects OOEngine, OORender, OOSolverCore. */
+/* Skewbiks.com — Method solver app. Expects (load order in solver.html):
+   OO_CONFIG, OOAccount, OOEngine, OOTables, OORender, SiteNavbar, OODom,
+   OOSolverCore. */
 (function () {
 const E = window.OOEngine, R = window.OORender, CORE = window.OOSolverCore;
 const { h, $, toast, tick, copyBtn, installErrorToast } = window.OODom;

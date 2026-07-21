@@ -1,4 +1,4 @@
-/* Pyraminx.net — shared navigation bar.
+/* Skewbiks.com — shared navigation bar.
  *
  * The primary row is the same on every page: wordmark + the four site
  * sections. A page can supply sub-options that render in a second row

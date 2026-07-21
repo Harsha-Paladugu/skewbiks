@@ -1,4 +1,4 @@
-/* Pyraminx.net — shared design system: tokens, base elements, navbar, cards, common widgets. */
+/* Skewbiks.com — shared design system: tokens, base elements, navbar, cards, common widgets. */
 
 :root{
   --ink:#0e1420; --ink2:#141c2c; --panel:#19222f; --panel2:#1f2a3a;
@@ -41,10 +41,12 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{
 .sublink.on{color:var(--txt);background:var(--panel2)}
 .wordmark{font-family:var(--disp);font-weight:700;font-size:19px;letter-spacing:.06em;text-decoration:none;display:flex;align-items:center;gap:9px}
 .wordmark b{color:var(--yellow);font-weight:800}
-/* faceted "V" mark — V-First in the four Pyraminx face colors. The navbar mark,
-   the favicon, and the hero logo all share one cached file: img/logo.svg. */
+/* faceted Skewb mark. The navbar mark, the favicon, and the hero logo all
+   share one cached file: img/logo.svg. NOTE: ?v= queries inside CSS url()s are
+   NOT rewritten by npm run stamp (it only stamps HTML refs) — bump these by
+   hand when img/logo.svg changes. */
 .tri{width:20px;height:20px;display:inline-block;background-repeat:no-repeat;background-position:center;background-size:contain;
-  background-image:url("../img/logo.svg?v=1")}
+  background-image:url("../img/logo.svg?v=2")}
 .navtabs{display:flex;gap:4px;flex:1;flex-wrap:wrap}
 .navlink{text-decoration:none;color:var(--mut);padding:.45em .9em;border-radius:8px;font-weight:500}
 .navlink:hover{color:var(--txt)}
@@ -164,7 +166,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{
 .toast.show{opacity:1;transform:translate(-50%,0)}
 #boot-status{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;background:var(--ink);z-index:40;transition:opacity .4s ease}
 #boot-status.gone{opacity:0;pointer-events:none;visibility:hidden}
-#boot-status .bigtri{width:78px;height:78px;background-repeat:no-repeat;background-position:center;background-size:contain;background-image:url("../img/logo.svg?v=1");animation:pulse 1.6s ease-in-out infinite}
+#boot-status .bigtri{width:78px;height:78px;background-repeat:no-repeat;background-position:center;background-size:contain;background-image:url("../img/logo.svg?v=2");animation:pulse 1.6s ease-in-out infinite}
 @keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.07)}}
 @media(prefers-reduced-motion:reduce){#boot-status .bigtri{animation:none}.bar{transition:none}}
 #boot-label{color:var(--mut);font-size:14.5px}

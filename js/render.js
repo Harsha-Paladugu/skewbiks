@@ -1,6 +1,5 @@
 /* Skewbiks.com — Diagram renderer: 2D dual-view net + draggable 3D view. */
 (function(){const module={exports:{}};
-// Skewb OO — renderer.
 // 2D: two fixed orthographic corner views side by side — "front" (U/F/L, the
 //     WCA scrambling hold: white top, green left, red right, UFL corner toward
 //     you) and "back" (D/B/R) — every one of the 30 stickers visible exactly

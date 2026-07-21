@@ -1,4 +1,4 @@
-/* Pyraminx.net — shared account layer (auth + per-user data), site-wide.
+/* Skewbiks.com — shared account layer (auth + per-user data), site-wide.
  *
  * Exposes window.OOAccount. Auto-initializes on load, so every page that
  * includes this script (after config.js) gets a single shared sign-in session

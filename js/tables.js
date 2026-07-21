@@ -1,7 +1,7 @@
 /* Skewbiks.com — shared BFS table cache (window.OOTables).
  *
  * The OO census (js/oo.js) and the method solver (js/solver.js) both need the
- * BFS distance table over the full no-tips state space; the census also needs the
+ * BFS distance table over the full Skewb state space; the census also needs the
  * canonical-class tables (reps + depths). These used to be duplicated in both
  * files AND cached under one IndexedDB key ('oo-tables-v1') with two different
  * value shapes ({dist} vs {dist,reps,depths}). This module is the single owner of

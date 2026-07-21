@@ -1,4 +1,4 @@
-/* Pyraminx.net — shared DOM micro-kit (window.OODom = { h, $, toast, tick, copyBtn, installErrorToast }).
+/* Skewbiks.com — shared DOM micro-kit (window.OODom = { h, $, toast, tick, copyBtn, installErrorToast }).
    One source for the tiny hyperscript helpers used by oo.js, algs.js, solver.js.
    Plain browser global; no bundler. The `html` attr is a trusted-markup-only
    escape hatch (innerHTML) — never pass user-supplied strings to it. */

@@ -1,4 +1,4 @@
-/* Pyraminx.net — build-freshness / reproducibility check.
+/* Skewbiks.com — build-freshness / reproducibility check.
  *
  * The generated outputs (js/sheet.js, js/trainer.js) and the HTML asset stamps are
  * committed, so a stale commit (source edited but not rebuilt, or a hand-edited

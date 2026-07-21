@@ -1,6 +1,6 @@
 /* Skewbiks.com — Method solver core: first-step targets, sheet-alg finishes. */
 (function(){const module={exports:{}};
-/* Skewb OO — method solver core (no DOM; testable in node).
+/* No DOM; testable in node.
    Methods = first-step target spaces derived from the imported method sheets
    (machine-probed against data/skewb_algs.json, 2026-07-07 — every NS/EG2/TCLL
    case state sits in its method's space, minus 5 known sheet outliers):

@@ -1,4 +1,4 @@
-/* Pyraminx.net — content-hash asset stamping.
+/* Skewbiks.com — content-hash asset stamping.
  *
  * Replaces the manual `?v=N` cache-busting on local js/css/img assets in the
  * *.html pages with `?v=<8-hex sha1 of the asset's bytes>`. Content-addressed, so

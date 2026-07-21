@@ -1,5 +1,5 @@
-/* Skewbiks.com — OO solutions app. Expects OOEngine, OORender, SiteNavbar, OOAccount (auth) and OO_CONFIG (config.js). */
-/* Skewb OO — app layer. Expects window.OOEngine (engine) + window.OORender (net renderer). */
+/* Skewbiks.com — OO census app. Expects (load order in oo.html): OO_CONFIG,
+   OOAccount, OOEngine, OOTables, OORender, SiteNavbar, OODom. */
 (function () {
 const E = window.OOEngine, R = window.OORender;
 const CFG = window.OO_CONFIG || {};
