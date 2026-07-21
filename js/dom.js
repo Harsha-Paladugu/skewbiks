@@ -39,5 +39,42 @@
   function installErrorToast() {
     window.addEventListener('error', () => { try { toast('Something went wrong. Try reloading the page.'); } catch (e) {} });
   }
-  window.OODom = { h, $, toast, tick, copyBtn, installErrorToast };
+
+  /* ---- shared WCA/NS notation preference (one localStorage key site-wide,
+     so an explicit choice on any page sticks everywhere). The trainer keeps
+     its own React copy of this plumbing (js/dom.js is not loaded on
+     trainer.html) — KEEP the key + validation in sync with the bundle. ---- */
+  const NOTA_KEY = 'skewbiks-notation';
+  function getNota(dflt) {
+    try { const v = localStorage.getItem(NOTA_KEY); if (v === 'wca' || v === 'ns') return v; } catch (e) {}
+    return dflt === 'ns' ? 'ns' : 'wca';
+  }
+  function setNota(v) {
+    const n = v === 'ns' ? 'ns' : 'wca';
+    try { localStorage.setItem(NOTA_KEY, n); } catch (e) {}
+    return n;
+  }
+  // engine WCA string -> the given notation, for display
+  const dispAlg = (s, nota) => (s && nota === 'ns') ? window.OOEngine.wcaToNS(s) : s;
+  // the two-button WCA/NS switch — one markup + aria treatment for every page.
+  // opts: { titles: {wca, ns} per-button tooltips (null suppresses), groupTitle,
+  // ariaLabel } — pages whose toggle SEMANTICS differ (the solver's governs how
+  // the scramble is READ) override these rather than re-rolling the markup.
+  function notaSwitch(current, onChange, opts) {
+    const o = opts || {};
+    const tt = o.titles || {
+      wca: 'WCA notation — R U L B turn the fixed corners (official scrambles)',
+      ns: 'NS notation — top corners F R B L, bottom corners f r b l (Sarah / NS alg sheets)',
+    };
+    const btn = (val, label) => h('button', {
+      class: 'notabtn' + (current === val ? ' on' : ''),
+      'aria-pressed': current === val ? 'true' : 'false',
+      title: tt[val], onclick: () => onChange(val),
+    }, label);
+    return h('div', { class: 'notaswitch', role: 'group',
+      'aria-label': o.ariaLabel || 'move notation', title: o.groupTitle || null },
+      btn('wca', 'WCA'), btn('ns', 'NS'));
+  }
+
+  window.OODom = { h, $, toast, tick, copyBtn, installErrorToast, getNota, setNota, dispAlg, notaSwitch };
 })();

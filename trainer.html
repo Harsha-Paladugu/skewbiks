@@ -28,7 +28,7 @@
 <!-- Shared account layer (site-wide sign in), then the navbar (which auto-mounts
      the sign-in control). -->
 <script src="js/config.js?v=52ba27d1"></script>
-<script src="js/account.js?v=909475d0"></script>
+<script src="js/account.js?v=09774e1b"></script>
 <script src="js/navbar.js?v=73640787"></script>
 <script>new SiteNavbar({ active: 'trainer' }).mount(document.body);</script>
 <div id="root"></div>
@@ -88,7 +88,7 @@
   function boot() {
     if (booted) return; booted = true; bootUid = curUid();
     var s = document.createElement('script');
-    s.src = 'js/trainer.js?v=c5b2491b';
+    s.src = 'js/trainer.js?v=9ee47031';
     document.body.appendChild(s);
   }
   if (A && A.whenReady) {

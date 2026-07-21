@@ -3,24 +3,23 @@
 (function () {
 const E = window.OOEngine, R = window.OORender;
 const CFG = window.OO_CONFIG || {};
-const { h, $, toast, tick, copyBtn, installErrorToast } = window.OODom;
+const D = window.OODom;
+const { h, $, toast, tick, copyBtn, installErrorToast } = D;
 const fmt = n => n.toLocaleString('en-US');
 
 /* ---------------- notation (WCA default, NS switch) ---------------- */
-// One per-browser preference. WCA letters R U L B are the official scramble
-// notation; NS ("Rubik'skewb", used by the Sarah/NS alg sheets) names all
-// eight corners: top F R B L, bottom f r b l. Engine-generated strings are
-// always WCA and get display-converted; stored solutions carry the notation
-// they were typed in (doc field `notation`, default 'wca').
-const NOTA_KEY = 'skewbiks-notation';
-let NOTA = 'wca';
-try { if (localStorage.getItem(NOTA_KEY) === 'ns') NOTA = 'ns'; } catch {}
+// One per-browser preference, shared via OODom (one localStorage key
+// site-wide). WCA letters R U L B are the official scramble notation; NS
+// ("Rubik'skewb", used by the Sarah/NS alg sheets) names all eight corners:
+// top F R B L, bottom f r b l. Engine-generated strings are always WCA and get
+// display-converted; stored solutions carry the notation they were typed in
+// (doc field `notation`, default 'wca').
+let NOTA = D.getNota('wca');
 function setNota(v) {
-  NOTA = v === 'ns' ? 'ns' : 'wca';
-  try { localStorage.setItem(NOTA_KEY, NOTA); } catch {}
+  NOTA = D.setNota(v);
   render();
 }
-const dispAlg = s => (s && NOTA === 'ns') ? E.wcaToNS(s) : s;                 // engine WCA string -> active notation
+const dispAlg = s => D.dispAlg(s, NOTA);                 // engine WCA string -> active notation
 const notaOf = sol => sol.notation === 'ns' ? 'ns' : 'wca';
 const dispSol = sol => E.convertAlg(sol.solution, notaOf(sol), NOTA) || sol.solution;
 const dispSolMirror = sol => E.convertAlg(E.mirrorAlg(sol.solution), notaOf(sol), NOTA) || E.mirrorAlg(sol.solution);
@@ -32,6 +31,9 @@ const dispSolMirror = sol => E.convertAlg(E.mirrorAlg(sol.solution), notaOf(sol)
 // submit form and at approval — since Firestore rules can't count sibling docs.
 // Approving/creating past it is blocked.
 const MAX_SOLUTIONS = 2;
+// Longest accepted solution, in moves (rotations free) — enforced by
+// verifySolution and quoted in the submit-form placeholders.
+const MAX_MOVES = 15;
 const moderatorFormUrl = () => String(CFG.moderatorFormUrl || '').trim();
 
 /* ---------------- tables: BFS + canonical classes, cached in IndexedDB ---------------- */
@@ -99,6 +101,14 @@ const mirrorOf = s => T.mirrorEntryOf(s); // census entry id of the mirror image
 // done-bitmap accessors: one bit per class ordinal
 const testBit = (bm, o) => !!(bm[o >> 3] & (1 << (o & 7)));
 const setBit = (bm, o) => { bm[o >> 3] |= 1 << (o & 7); };
+const countBits = bm => { let n = 0; for (let i = 0; i < bm.length; i++) { let x = bm[i]; while (x) { n += x & 1; x >>= 1; } } return n; };
+// Uint8Array -> base64, chunked so fromCharCode never overflows the arg limit.
+// The inverse of decodeBitmap below; both bitmap write paths use this.
+function encodeBitmap(bm) {
+  let b64 = ''; const CH = 8192;
+  for (let i = 0; i < bm.length; i += CH) b64 += String.fromCharCode.apply(null, bm.subarray(i, i + CH));
+  return btoa(b64);
+}
 // decode a base64 done-bitmap into a fresh Uint8Array sized to the class count
 // (a missing/empty string yields the all-zero bitmap). A WRONG-SIZED stored map
 // (e.g. the pre-2026-07-10 24-sym-fold bitmap, ⌈131391/8⌉ bytes, or the interim
@@ -152,7 +162,7 @@ function verifySolution(text, pair, notation) {
     : 'We couldn\u2019t read that. Use R U L B (with \u2032 or 2) and rotations x y z.' };
   const moves = E.countMoves(parsed);
   if (moves === 0) return { ok: false, error: 'Add some moves first.' };
-  if (moves > 15) return { ok: false, error: 'That\u2019s ' + moves + ' moves. Solutions have to be 15 or fewer.' };
+  if (moves > MAX_MOVES) return { ok: false, error: 'That\u2019s ' + moves + ' moves. Solutions have to be ' + MAX_MOVES + ' or fewer.' };
   for (const side of ['a', 'b']) {
     if (!pair[side]) continue;
     for (const v of pair[side].variants) {
@@ -161,6 +171,19 @@ function verifySolution(text, pair, notation) {
     }
   }
   return { ok: false, moves, error: 'That doesn\u2019t solve this scramble. We checked it from every way of holding either mirror.' };
+}
+// Side integrity, one computation for all three checkpoints (demoDB.review,
+// liveDB.review, the moderation page): verify the stored text in ITS OWN
+// notation and resolve which entry id (side) it actually solves. A text that
+// only solves the MIRROR side must never be approved onto this side \u2014 it is
+// the wrong-handed alg for it (mirrors are separate entries since 2026-07-10).
+// The review() backends re-check what the UI already gated on BY DESIGN
+// (defense-in-depth against stale queue renders / direct writes) \u2014 they share
+// this computation, not the checkpoint.
+function verifiedSide(sol) {
+  const pair = validId(sol.classId) ? pairOf(sol.classId) : null;
+  const v = pair ? verifySolution(sol.solution, pair, notaOf(sol)) : { ok: false };
+  return { v, solvedId: v.ok ? (v.side === 'b' && pair.b ? pair.b.id : pair.a.id) : -1 };
 }
 // One PAGE covers a position AND its LR mirror (pairId = full 48-group fold),
 // but the two mirror "sides" are SEPARATE census entries (hold-24 classes),
@@ -208,18 +231,13 @@ function demoDB() {
     onChange(f) { subs.add(f); },
     signIn() { return A.signIn(); },
     signOut() { return A.signOut(); },
-    async stats() {
-      const d = load(); const done = new Set();
-      for (const s of d.solutions) if (s.status === 'approved') {
-        // a solution marks ONLY the side it solves: classId -> hold-24 entry canon -> ordinal
-        const o = validId(s.classId) ? ordinalOf(entryOf(E.unidx(s.classId))) : -1;
-        if (o >= 0) done.add(o);
-      }
-      return { done: done.size, total: T.reps.length };
+    async stats() {   // derived from doneMap so the two can never disagree
+      return { done: countBits(await this.doneMap()), total: T.reps.length };
     },
     async doneMap() {
       const d = load(); const bm = new Uint8Array(Math.ceil(T.reps.length / 8));
       for (const s of d.solutions) if (s.status === 'approved') {
+        // a solution marks ONLY the side it solves: classId -> hold-24 entry canon -> ordinal
         const o = validId(s.classId) ? ordinalOf(entryOf(E.unidx(s.classId))) : -1;
         if (o >= 0) setBit(bm, o);
       }
@@ -240,13 +258,9 @@ function demoDB() {
       const d = load(); const s = d.solutions.find(x => x.id === id);
       if (!s) return;
       if (action === 'approved') {
-        // side integrity: the stored text must solve the side classId claims —
-        // a mirror-side text approved onto this side would record a
-        // wrong-handed solution and flip the wrong done-bit.
-        const pPair = validId(s.classId) ? pairOf(s.classId) : null;
-        const pv = pPair ? verifySolution(s.solution, pPair, s.notation === 'ns' ? 'ns' : 'wca') : { ok: false };
-        const pSolved = pv.ok ? (pv.side === 'b' && pPair.b ? pPair.b.id : pPair.a.id) : -1;
-        if (pSolved !== sideIdOf(s)) throw new Error('SIDE');
+        // side integrity (see verifiedSide): the stored text must solve the
+        // side classId claims
+        if (verifiedSide(s).solvedId !== sideIdOf(s)) throw new Error('SIDE');
         // per-SIDE cap: sideIdOf identifies the side within the pair
         if (d.solutions.filter(x => sideIdOf(x) === sideIdOf(s) && x.status === 'approved').length >= MAX_SOLUTIONS)
           throw new Error('CAP');
@@ -370,10 +384,7 @@ function liveDB() {
       // the MIRROR side would otherwise mark the claimed side's done-bit with a
       // wrong-handed solution — mirrors are separate entries since 2026-07-10.
       const pd = preSnap.data();
-      const pPair = validId(pd.classId) ? pairOf(pd.classId) : null;
-      const pv = pPair ? verifySolution(pd.solution, pPair, pd.notation === 'ns' ? 'ns' : 'wca') : { ok: false };
-      const pSolved = pv.ok ? (pv.side === 'b' && pPair.b ? pPair.b.id : pPair.a.id) : -1;
-      if (pSolved !== sideIdOf(pd)) throw new Error('SIDE');
+      if (verifiedSide(pd).solvedId !== sideIdOf(pd)) throw new Error('SIDE');
       const approvedQ = F.query(F.collection(fs, 'solutions'),
         F.where('pairId', '==', preSnap.data().pairId), F.where('status', '==', 'approved'));
       let sameSide = 0;
@@ -396,11 +407,8 @@ function liveDB() {
         const o = ordinalOf(entryOf(E.unidx(data.classId)));
         let added = 0;
         if (o >= 0 && !testBit(bm, o)) { setBit(bm, o); added = 1; }
-        let b64 = ''; const CH = 8192;
-        for (let i = 0; i < bm.length; i += CH) b64 += String.fromCharCode.apply(null, bm.subarray(i, i + CH));
-        b64 = btoa(b64);
         tx.update(solRef, { status: 'approved', reviewedBy: A.user.email });
-        tx.set(mapRef, { b64 });
+        tx.set(mapRef, { b64: encodeBitmap(bm) });
         const done = (statDoc.exists() ? statDoc.data().done || 0 : 0) + added;
         tx.set(statRef, { done, total: T.reps.length });
       });
@@ -435,11 +443,8 @@ function liveDB() {
         const o = ordinalOf(entryOf(E.unidx(cid))); // same keying as the approval tx (per side)
         if (o >= 0) setBit(bm, o); else skipped++;
       });
-      let done = 0;
-      for (let i = 0; i < bm.length; i++) { let x = bm[i]; while (x) { done += x & 1; x >>= 1; } }
-      let b64 = ''; const CH = 8192;
-      for (let i = 0; i < bm.length; i += CH) b64 += String.fromCharCode.apply(null, bm.subarray(i, i + CH));
-      await F.setDoc(F.doc(fs, 'meta', 'doneMap'), { b64: btoa(b64) });
+      const done = countBits(bm);
+      await F.setDoc(F.doc(fs, 'meta', 'doneMap'), { b64: encodeBitmap(bm) });
       await F.setDoc(F.doc(fs, 'meta', 'stats'), { done, total: T.reps.length });
       notify();
       return { done, skipped };
@@ -451,24 +456,17 @@ function liveDB() {
 const app = () => $('#app');
 function nav() {
   const route = location.hash || '#/';
-  const u = DB.user;
   const sub = [
     { label: 'Solutions', href: '#/', on: route === '#/' || route.startsWith('#/c/') },
     { label: 'Browse by depth', href: '#/browse', on: route.startsWith('#/browse') },
     DB.isMod ? { label: 'Moderation', href: '#/mod', on: route.startsWith('#/mod') } : null,
     { label: 'How it works', href: '#/about', on: route.startsWith('#/about') },
   ].filter(Boolean);
-  const notaSwitch = h('div', { class: 'notaswitch', role: 'group', 'aria-label': 'move notation' },
-    h('button', { class: 'notabtn' + (NOTA === 'wca' ? ' on' : ''), 'aria-pressed': NOTA === 'wca' ? 'true' : 'false',
-      title: 'WCA notation — R U L B turn the fixed corners (official scrambles)', onclick: () => setNota('wca') }, 'WCA'),
-    h('button', { class: 'notabtn' + (NOTA === 'ns' ? ' on' : ''), 'aria-pressed': NOTA === 'ns' ? 'true' : 'false',
-      title: 'NS notation — top corners F R B L, bottom corners f r b l (Sarah / NS alg sheets)', onclick: () => setNota('ns') }, 'NS'));
+  // auth controls come from the shared OOAccount.authBox (self-updating);
+  // this wrapper just adds the shared notation switch to the navbar right slot
   const right = h('div', { class: 'authbox' },
-      notaSwitch,
-      DB.mode === 'demo' ? h('span', { class: 'demobadge', title: 'No Firebase config yet. Your data stays in this browser.' }, 'demo mode') : null,
-      u ? h('span', { class: 'whoami' }, u.name || u.email) : null,
-      u ? h('button', { class: 'ghost', onclick: () => DB.signOut() }, 'Sign out')
-        : h('button', { class: 'primary', onclick: () => DB.signIn().catch(() => toast('Sign-in didn’t go through. Please try again.')) }, 'Sign in with Google'));
+      D.notaSwitch(NOTA, setNota),
+      window.OOAccount.authBox(() => toast('Sign-in didn’t go through. Please try again.')));
   return new SiteNavbar({ active: 'oo', sub, right }).element();
 }
 async function renderInner() {
@@ -747,8 +745,8 @@ async function pageClass(main, anyId) {
                  : fullB ? ' The mirror side is full — only position-side solutions can still go in.' : '')));
     const ta = h('textarea', { class: 'mono solin', rows: '2',
       placeholder: NOTA === 'ns'
-        ? "e.g.  R' F R F'   (NS notation \u00b7 rotations x y z free \u00b7 doubles 1 move \u00b7 max 15)"
-        : "e.g.  y L U' B2 U L'   (WCA notation \u00b7 rotations x y z free \u00b7 doubles 1 move \u00b7 max 15)" });
+        ? "e.g.  R' F R F'   (NS notation \u00b7 rotations x y z free \u00b7 doubles 1 move \u00b7 max " + MAX_MOVES + ")"
+        : "e.g.  y L U' B2 U L'   (WCA notation \u00b7 rotations x y z free \u00b7 doubles 1 move \u00b7 max " + MAX_MOVES + ")" });
     const status = h('div', { class: 'verifyline' }, 'Type a solution in ' + (NOTA === 'ns' ? 'NS' : 'WCA') + ' notation. We check it as you go, against every way of holding either mirror.');
     const nameRow = h('label', { class: 'namerow' },
       h('input', { type: 'checkbox', checked: '' }), ' show my name (', DB.user.name || DB.user.email, ') on this solution');
@@ -875,18 +873,13 @@ async function pageMod(main) {
           h('button', { class: 'danger', onclick: async () => { await DB.review(s.id, 'rejected'); toast('Rejected.'); render(); } }, 'Reject'))));
       continue;
     }
-    const pr = pairOf(s.classId);
     // re-verify in the notation the solution was SUBMITTED in — "R' L R L'"
     // parses in both notations but means different corners in each. Display
     // follows the WCA/NS switch like everywhere else (the scramble is stored
     // as engine WCA, the solution in its own `notation`); verification always
-    // runs on the stored text.
-    const v = verifySolution(s.solution, pr, s.notation === 'ns' ? 'ns' : 'wca');
-    // Side integrity: the text must solve the side classId claims. A solution
-    // that only solves the MIRROR side must not be approvable onto this side \u2014
-    // it is the wrong-handed alg for it (mirrors are separate entries since
-    // 2026-07-10). DB.review re-checks this (throws SIDE); gate the UI too.
-    const solvedId = v.ok ? (v.side === 'b' && pr.b ? pr.b.id : pr.a.id) : -1;
+    // runs on the stored text. Side integrity via verifiedSide — DB.review
+    // re-checks the same computation (throws SIDE); gate the UI too.
+    const { v, solvedId } = verifiedSide(s);
     const sideOk = v.ok && solvedId === sideIdOf(s);
     const row = h('section', { class: 'card modrow' },
       h('div', { class: 'modleft', html: R.netSVG(E.unidx(s.classId), 160, { cls: 'oonet thumb', thumb: true }) }),

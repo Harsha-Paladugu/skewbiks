@@ -23,6 +23,9 @@ const DATA_URL = "data/skewb_algs.json";
 const SUBSET_COLORS = ["#3577cc", "#27975a", "#cf4d44", "#9355bd", "#cd7c20", "#74882b"];
 
 // ---------- notation (shared site-wide pref; NS default like the algs page) ----------
+// KEEP IN SYNC with js/dom.js (OODom.getNota/setNota): same key, same
+// both-value validation. The trainer bundles its own React copy because
+// trainer.html does not load js/dom.js.
 const NOTA_KEY = "skewbiks-notation";
 const isRotTok = (t) => /^[xyz](2'|2|')?$/.test(t);
 
@@ -846,7 +849,7 @@ export default function SkewbTrainer() {
           <div className="spacer" />
           <div className="notaswitch" role="group" aria-label="notation">
             {[["wca", "WCA"], ["ns", "NS"]].map(([v, l]) => (
-              <button key={v} className={"notabtn" + (nota === v ? " on" : "")} onClick={() => setNota(v)}>{l}</button>
+              <button key={v} className={"notabtn" + (nota === v ? " on" : "")} aria-pressed={nota === v} onClick={() => setNota(v)}>{l}</button>
             ))}
           </div>
           <button className="gear" onClick={() => setSettingsOpen((o) => !o)}>Settings</button>

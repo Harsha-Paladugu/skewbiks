@@ -42,10 +42,10 @@ async function boot() {
   }
 }
 
-/* ---- notation (shared preference with the other pages) ---- */
-const NOTA_KEY = 'skewbiks-notation';
-let NOTA = 'wca';
-try { if (localStorage.getItem(NOTA_KEY) === 'ns') NOTA = 'ns'; } catch (e) {}
+/* ---- notation (the shared OODom preference; here it governs how the
+   SCRAMBLE INPUT is read — solutions always display in RubiksSkewb) ---- */
+const D = window.OODom;
+let NOTA = D.getNota('wca');
 function setNota(v) {
   const next = v === 'ns' ? 'ns' : 'wca';
   if (next === NOTA) return;
@@ -64,8 +64,7 @@ function setNota(v) {
       UI.scramble = conv;
     }
   }
-  NOTA = next;
-  try { localStorage.setItem(NOTA_KEY, NOTA); } catch (e) {}
+  NOTA = D.setNota(next);
   render();
 }
 /* ---- state ---- */
@@ -216,10 +215,13 @@ function renderInner() {
     h('button', { class: 'primary', onclick: onSolve }, 'Solve'),
     // the switch selects how the SCRAMBLE is read; solutions are always shown
     // in RubiksSkewb notation (see the lede)
-    h('div', { class: 'notaswitch', role: 'group', 'aria-label': 'scramble notation',
-      title: 'how your scramble is read (solutions are always shown in RubiksSkewb notation)' },
-      h('button', { class: 'notabtn' + (NOTA === 'wca' ? ' on' : ''), onclick: () => setNota('wca') }, 'WCA'),
-      h('button', { class: 'notabtn' + (NOTA === 'ns' ? ' on' : ''), onclick: () => setNota('ns') }, 'NS'))));
+    D.notaSwitch(NOTA, setNota, {
+      // deliberate semantics: this toggle governs how the SCRAMBLE is read,
+      // so the tooltip lives on the group, not per button
+      ariaLabel: 'scramble notation',
+      groupTitle: 'how your scramble is read (solutions are always shown in RubiksSkewb notation)',
+      titles: { wca: null, ns: null },
+    })));
 
   /* method toggles */
   const togRow = h('div', { class: 'methodrow' });

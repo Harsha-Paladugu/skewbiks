@@ -48,18 +48,17 @@
   const { stateKey, realCanonKey, caseStateOf, prependAUF } = E;
 
   // ---------- notation (NS default here — the method sheets are NS-native and
-  // their authored form, rotations included, is the executable one; shared
-  // preference key with oo.html, so an explicit choice anywhere sticks) ----------
-  const NOTA_KEY = 'skewbiks-notation';
-  let NOTA = 'ns';
-  try { const v = localStorage.getItem(NOTA_KEY); if (v === 'wca' || v === 'ns') NOTA = v; } catch (e) {}
+  // their authored form, rotations included, is the executable one; the
+  // preference itself is the site-wide OODom one, so an explicit choice
+  // anywhere sticks) ----------
+  const D = window.OODom;
+  let NOTA = D.getNota('ns');
   function setNota(v) {
-    NOTA = v === 'ns' ? 'ns' : 'wca';
-    try { localStorage.setItem(NOTA_KEY, NOTA); } catch (e) {}
+    NOTA = D.setNota(v);
     renderToolbarNota();
     renderMain();
   }
-  const dispAlg = (s) => (s && NOTA === 'ns') ? E.wcaToNS(s) : s; // stored WCA -> active notation
+  const dispAlg = (s) => D.dispAlg(s, NOTA); // stored WCA -> active notation
   // active-notation input -> stored WCA (null if unparseable in that notation)
   const inputToWCA = (raw) => NOTA === 'ns' ? E.nsToWCA(raw) : raw;
 
@@ -690,10 +689,9 @@
   function renderToolbarNota() {
     if (!notaBox) return;
     notaBox.innerHTML = '';
-    notaBox.appendChild(h('button', { class: 'notabtn' + (NOTA === 'wca' ? ' on' : ''), 'aria-pressed': NOTA === 'wca' ? 'true' : 'false',
-      title: 'WCA notation — R U L B turn the fixed corners (official scrambles)', onclick: () => setNota('wca') }, 'WCA'));
-    notaBox.appendChild(h('button', { class: 'notabtn' + (NOTA === 'ns' ? ' on' : ''), 'aria-pressed': NOTA === 'ns' ? 'true' : 'false',
-      title: 'NS notation — top corners F R B L, bottom corners f r b l (Sarah / NS alg sheets)', onclick: () => setNota('ns') }, 'NS'));
+    // the shared switch renders its own .notaswitch wrapper; notaBox is the
+    // toolbar slot it drops into
+    notaBox.appendChild(D.notaSwitch(NOTA, setNota));
   }
 
   function build() {

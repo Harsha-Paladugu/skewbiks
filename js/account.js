@@ -119,7 +119,10 @@
   const impl = LIVE ? liveApi : demoApi;
 
   /* ---------------- self-updating navbar control ---------------- */
-  function authBox() {
+  // onError (optional): called with the failure when sign-in/out rejects —
+  // pages pass a toast; default logs to the console.
+  function authBox(onError) {
+    const fail = e => { if (onError) onError(e); else console.error(e); };
     const box = document.createElement('div');
     box.className = 'authbox';
     const paint = () => {
@@ -138,14 +141,14 @@
         const out = document.createElement('button');
         out.className = 'ghost';
         out.textContent = 'Sign out';
-        out.addEventListener('click', () => api.signOut().catch(e => console.error(e)));
+        out.addEventListener('click', () => api.signOut().catch(fail));
         box.appendChild(who);
         box.appendChild(out);
       } else {
         const inb = document.createElement('button');
         inb.className = 'primary';
         inb.textContent = 'Sign in with Google';
-        inb.addEventListener('click', () => api.signIn().catch(e => console.error('Sign-in failed:', e)));
+        inb.addEventListener('click', () => api.signIn().catch(fail));
         box.appendChild(inb);
       }
     };
