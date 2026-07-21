@@ -76,5 +76,29 @@
       btn('wca', 'WCA'), btn('ns', 'NS'));
   }
 
-  window.OODom = { h, $, toast, tick, copyBtn, installErrorToast, getNota, setNota, dispAlg, notaSwitch };
+  /* ---- boot overlay + fatal-error card (the #boot-status markup shared by
+     oo.html and solver.html; page scripts supply their own stage names) ---- */
+  // returns a (text, n, total) writer for the label / bar / aria-valuenow
+  function bootProgress() {
+    const label = $('#boot-label'), bar = $('#boot-bar'), track = $('#boot-track');
+    return (text, n, total) => {
+      const pct = Math.round(100 * n / total);
+      if (label) label.textContent = text;
+      if (bar) bar.style.width = pct + '%';
+      if (track) track.setAttribute('aria-valuenow', pct);   // announce progress to AT
+    };
+  }
+  // fade the overlay out and physically remove it from the DOM
+  function bootDone() {
+    const el = $('#boot-status');
+    if (!el) return;
+    el.classList.add('gone');
+    setTimeout(() => el.remove(), 500);
+  }
+  // the shared fatal-render card (style: site.css .card.error)
+  const errorCard = (style) => h('div', { class: 'card error', style: style || null },
+    'Something went wrong loading this page. Try reloading.');
+
+  window.OODom = { h, $, toast, tick, copyBtn, installErrorToast, getNota, setNota, dispAlg, notaSwitch,
+    bootProgress, bootDone, errorCard };
 })();

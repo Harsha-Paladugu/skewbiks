@@ -29,7 +29,7 @@
 .chip .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--cdot, var(--dimc)); flex: none; }
 .chip .ct { font: 500 11px var(--monof); color: var(--dimc); }
 .chip.on { background: var(--yellow); border-color: var(--yellow); color: var(--actink); }
-.chip.on .ct { color: rgba(35,28,5,.66); }
+.chip.on .ct { color: var(--actink-dim); }
 .chip.on .dot { background: var(--cdot, var(--actink)); box-shadow: 0 0 0 1px rgba(35,28,5,.35); }
 .grouplabel { font-size: 11.5px; text-transform: uppercase; letter-spacing: .1em; color: var(--dimc); font-weight: 600; margin: 0 2px 0 6px; }
 .presets { display: flex; gap: 12px; margin: 4px 2px 16px; flex-wrap: wrap; }
@@ -134,11 +134,8 @@ td .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; ma
 .markbtn.ok.sel { border-color: var(--green); color: var(--green); background: rgba(63,191,82,.12); }
 
 /* case-browser modal — same dialog language as the site's popups */
-.overlay { position: fixed; inset: 0; background: rgba(8,10,14,.55); display: flex;
-  align-items: center; justify-content: center; padding: 18px; z-index: 48; }
-.modal { background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
-  width: 100%; max-width: 640px; max-height: 84vh; overflow-y: auto; padding: 18px 20px;
-  box-shadow: 0 24px 70px rgba(0,0,0,.45); cursor: default; }
+/* overlay/box chrome comes from site.css (.overlay/.modal) */
+.modal { width: 100%; max-width: 640px; max-height: 84vh; overflow-y: auto; padding: 18px 20px; cursor: default; }
 .modalhead { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
 .modaltitle { font-family: var(--disp); font-size: 19px; font-weight: 700; margin-bottom: 7px; }
 .modal .tag { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; font-size: 12px;
@@ -158,9 +155,9 @@ td .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; ma
 .algrow.suspectrow { opacity: .6; }
 .alg .tok { margin-right: .5em; display: inline-block; }
 .alg .tok:last-child { margin-right: 0; }
-.alg .tok.rot { color: #7fb0ff; } /* lightened var(--blue) for dark panels */
+.alg .tok.rot { color: var(--bluelt); }
 .ychip { flex: 0 0 2.1em; text-align: center; font: 700 12px var(--monof);
-  color: #7fb0ff; border: 1px solid rgba(127,176,255,.45); border-radius: 6px; padding: 1px 0; }
+  color: var(--bluelt); border: 1px solid rgba(127,176,255,.45); border-radius: 6px; padding: 1px 0; }
 .ychip.blank { visibility: hidden; }
 .fmkey { flex: 0 0 2.4em; text-align: center; font: 700 13px var(--monof);
   color: var(--actink); background: var(--act); border-radius: 6px; padding: 1px 0; }

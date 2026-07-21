@@ -718,7 +718,7 @@
 
     const tabs = h('div', { class: 'sectabs' }, SECTIONS.map(s =>
       h('button', { class: 'sectab' + (s.id === section ? ' on' : ''), 'data-sec': s.id, 'aria-pressed': s.id === section ? 'true' : 'false', onclick: () => switchSection(s.id) }, s.label)));
-    subNav = h('div', { class: 'subnav' });
+    subNav = h('div', { class: 'algsubnav' });
     const toolbar = h('div', { class: 'algtoolbar' }, search, statusEl, notaBox, exportBtn);
     sideNav = h('nav', { class: 'algside', 'aria-label': 'cases' });
     main = h('div', { class: 'algmain' });

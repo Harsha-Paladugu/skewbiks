@@ -488,7 +488,7 @@ async function renderInner() {
     else await pageHome(main);
   } catch (err) {
     console.error(err);
-    main.appendChild(h('div', { class: 'card error' }, 'Something went wrong loading this page. Try reloading.'));
+    main.appendChild(D.errorCard());
   }
 }
 
@@ -979,22 +979,17 @@ function pageAbout(main) {
 
 /* ---------------- boot ---------------- */
 async function boot() {
-  const bootEl = $('#boot-status');
-  const label = $('#boot-label'), barEl = $('#boot-bar'), trackEl = $('#boot-track');
+  const bp = D.bootProgress();
   const report = (stage, n, total) => {
     const names = { cache: 'Loading cached tables', bfs: 'Mapping all 3,149,280 positions', classes: 'Condensing symmetries' };
-    const pct = Math.round(100 * n / total);
-    label.textContent = (names[stage] || stage) + '\u2026';
-    barEl.style.width = pct + '%';
-    if (trackEl) trackEl.setAttribute('aria-valuenow', pct);   // announce progress to AT
+    bp((names[stage] || stage) + '\u2026', n, total);
   };
   DB = (window.OOAccount.mode === 'live') ? liveDB() : demoDB();
   DB.onChange(() => render());
   const dbInit = DB.init().catch(e => { DB.failed = (e && e.message) || 'unknown error'; });
   await buildTables(report);
   await dbInit;
-  bootEl.classList.add('gone');
-  setTimeout(() => bootEl.remove(), 500); // the overlay physically leaves the DOM
+  D.bootDone();
   render();
 }
 async function render() {
@@ -1002,8 +997,7 @@ async function render() {
   catch (err) {
     console.error(err);
     const root = app(); root.innerHTML = '';
-    root.appendChild(h('div', { class: 'card error', style: 'margin:48px auto;max-width:680px' },
-      'Something went wrong loading this page. Try reloading.'));
+    root.appendChild(D.errorCard('margin:48px auto;max-width:680px'));
   }
 }
 installErrorToast();

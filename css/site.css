@@ -3,7 +3,9 @@
 :root{
   --ink:#0e1420; --ink2:#141c2c; --panel:#19222f; --panel2:#1f2a3a;
   --line:rgba(174,190,214,.14); --line2:rgba(174,190,214,.26);
-  --txt:#e8edf6; --mut:#9fadc4; --dim:#6c7a92; --paper:var(--txt);
+  --txt:#e8edf6; --mut:#9fadc4; --dim:#6c7a92;
+  --bluelt:#7fb0ff;              /* lightened --blue for dark panels (alg rotation tokens) */
+  --actink-dim:rgba(35,28,5,.66); /* dimmed ink on the yellow accent (counts on .on chips) */
   --green:#3fbf52; --red:#e8473d; --blue:#3a7fe8; --yellow:#f2cf3c;
   --act:#f2cf3c; --actink:#231c05;
   --disp:'Bricolage Grotesque',system-ui,sans-serif;
@@ -78,6 +80,10 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{
 /* cards */
 .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px 22px}
 .card.error{border-color:rgba(232,71,61,.5);color:var(--red)}
+/* shared dialog language (oo's rotation popup + the trainer's case browser own
+   the per-page sizing; the overlay + box chrome live here once) */
+.modal-ov,.overlay{position:fixed;inset:0;background:rgba(8,10,14,.55);display:flex;align-items:center;justify-content:center;z-index:48;padding:18px}
+.modal-box,.modal{background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:0 24px 70px rgba(0,0,0,.45)}
 .card h3{font-family:var(--disp);font-weight:650;margin:0 0 8px;font-size:17px}
 .card p{color:var(--mut);margin:0;font-size:14.5px}
 .empty{color:var(--dim);font-style:italic}

@@ -12,8 +12,7 @@ const { h, $, toast, tick, copyBtn, installErrorToast } = window.OODom;
 let dist = null, C = null;
 async function boot() {
   if (!window.OOTables) throw new Error('js/tables.js must load before js/solver.js');
-  const label = $('#boot-label'), bar = $('#boot-bar'), track = $('#boot-track');
-  const rep = (t, n, tot) => { const pct = Math.round(100 * n / tot); label.textContent = t; bar.style.width = pct + '%'; if (track) track.setAttribute('aria-valuenow', pct); };
+  const rep = D.bootProgress();
   // dist is shared with the OO census (KEY_DIST); the census enriches the same
   // IndexedDB with its class tables under a separate key, so neither clobbers the other.
   const [d, algData] = await Promise.all([
@@ -30,9 +29,7 @@ async function boot() {
   await tick();
   C.algIndex();
   rep('Ready', 1, 1);
-  const bootEl = $('#boot-status');
-  bootEl.classList.add('gone');
-  setTimeout(() => bootEl.remove(), 500);
+  D.bootDone();
   render();
   // restore saved preferences for a signed-in user, and again on any sign-in
   const A = window.OOAccount;
@@ -284,7 +281,7 @@ function renderInner() {
       rows.forEach(r => sec.appendChild(r));
       if (!rows.length) sec.appendChild(h('p', { class: 'empty' }, 'No method solutions at this length.'));
       if (items.length > 10 && !UI.showAll.has(L))
-        sec.appendChild(h('button', { class: 'ghost sm', onclick: () => { UI.showAll.add(L); render(); } }, 'show all ' + items.length));
+        sec.appendChild(h('button', { class: 'ghost sm showall', onclick: () => { UI.showAll.add(L); render(); } }, 'show all ' + items.length));
       main.appendChild(sec);
     }
     if (!UI.moreLens && lens.length > SHOW_LENS)
@@ -306,9 +303,7 @@ function render() {
   catch (err) {
     console.error(err);
     const root = $('#app'); root.innerHTML = '';
-    const card = h('div', { class: 'card solcard', style: 'margin:48px auto;max-width:680px;border-color:rgba(232,71,61,.5)' },
-      'Something went wrong loading this page. Try reloading.');
-    root.appendChild(card);
+    root.appendChild(D.errorCard('margin:48px auto;max-width:680px'));
   }
 }
 installErrorToast();
