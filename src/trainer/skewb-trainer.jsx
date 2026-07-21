@@ -506,31 +506,47 @@ export default function SkewbTrainer() {
     if (mode === "recog") { nextRecog(); return; }
     if (mode === "onelook") { nextOnelook(); return; }
     if (mode === "drill") { nextDrill(); return; }
-    setRecap((r) => {
-      if (!r) return r;
-      const idx = r.idx + 1;
-      if (idx >= r.queue.length) { setCurrent(null); return { ...r, idx }; }
-      setCurrent(makeDrill(r.queue[idx]));
-      return { ...r, idx };
-    });
-  }, [mode, nextDrill, nextRecog, nextOnelook, makeDrill]);
+    // recap: progression computed OUTSIDE the state updater (React may invoke
+    // updaters twice) — sibling setStates, the startRecap pattern
+    if (!recap) return;
+    const idx = recap.idx + 1;
+    setRecap({ ...recap, idx });
+    setCurrent(idx >= recap.queue.length ? null : makeDrill(recap.queue[idx]));
+  }, [mode, nextDrill, nextRecog, nextOnelook, makeDrill, recap]);
 
-  // Regenerate on boot/mode switch (stage reset) and on pool edits (groups/
-  // dirs/cases/known/scope). A pool edit only swaps the PENDING problem — it
-  // must not clear a stop-screen reveal (e.g. marking the just-solved case
-  // known), so phase/last are reset only on mode switches or mid-run edits.
+  // ---------- problem regeneration (one generator, classified requests) ----------
+  // Triggers only REQUEST a problem (tagged with why); the single generator
+  // effect below owns generation AND the stage-reset policy in one place:
+  // mode switches and mid-run changes clear the stage (phase/last); a
+  // stop-screen pool edit only swaps the PENDING problem — it must not clear
+  // the reveal (e.g. marking the just-solved case known).
   const genMode = useRef(null);
+  const [regen, setRegen] = useState(null);            // { kind, seq }
+  const requestProblem = useCallback((kind) =>
+    setRegen((r) => ({ kind, seq: (r ? r.seq : 0) + 1 })), []);
+  // boot / mode switch / pool edits (groups/dirs/cases/known/scope)
+  useEffect(() => { if (ready) requestProblem("pool"); }, [ready, mode, entries, requestProblem]);
   useEffect(() => {
-    if (!ready) return;
+    if (!regen || !ready) return;
     const modeSwitch = genMode.current !== mode;
     genMode.current = mode;
     if (modeSwitch || phase === "running") { setPhase("ready"); setLast(null); }
-    if (mode === "onelook") { if (modeSwitch) nextOnelook(); return; } // one-look ignores the pool
+    if (mode === "onelook") {
+      // one-look ignores the pool; a settings 'len' request without the table
+      // clears the stage so the building notice shows instead of a stale problem
+      if (regen.kind === "pool") { if (modeSwitch) nextOnelook(); return; }
+      if (regen.kind === "settings" && onelookView === "len" && !fldistRef.current) {
+        setPhase("ready"); setLast(null); setCurrent(null); return;
+      }
+      nextOnelook();
+      return;
+    }
+    if (regen.kind === "settings") { if (mode === "recog") nextRecog(); return; }
     if (mode === "drill") nextDrill();
     else if (mode === "recap") startRecap();
     else if (modeSwitch || phase !== "stopped") nextRecog();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, mode, entries]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fires per request; everything else is read fresh
+  }, [regen]);
 
   // ---------- timer ----------
   const tick = useCallback(() => {
@@ -626,23 +642,20 @@ export default function SkewbTrainer() {
   useEffect(() => () => cancelAnimationFrame(raf.current), []);
   useEffect(() => { if (phase !== "running") cancelAnimationFrame(raf.current); }, [phase]);
   useEffect(() => { if (mode === "drill" || mode === "recap") lastAlgoMode.current = mode; }, [mode]);
-  // switching the recognition view or its quiz settings regenerates the problem
+  // switching the recognition view / quiz settings, or the one-look settings,
+  // regenerates the problem (the generator effect above does the work)
   useEffect(() => {
-    if (ready && mode === "recog") nextRecog();
+    if (ready && mode === "recog") requestProblem("settings");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recogView, centerSel, cornersOn]);
-  // ditto for one-look settings; a 'len' request without the table clears the
-  // stage so the building notice shows instead of a stale problem
   useEffect(() => {
-    if (!ready || mode !== "onelook") return;
-    if (onelookView === "len" && !fldistRef.current) { setPhase("ready"); setLast(null); setCurrent(null); return; }
-    nextOnelook();
+    if (ready && mode === "onelook") requestProblem("settings");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onelookView, onelookLen, activePlans]);
   // the lazy fldist table landing fulfils a waiting 'len' request, exactly once
   // (progress ticks and the 'sol' sub-view must NOT regenerate — build churn)
   useEffect(() => {
-    if (ready && mode === "onelook" && onelookView === "len" && flBoot === "ready" && !current) nextOnelook();
+    if (ready && mode === "onelook" && onelookView === "len" && flBoot === "ready" && !current) requestProblem("settings");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [flBoot]);
 
