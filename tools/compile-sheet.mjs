@@ -149,7 +149,9 @@ for (const rk of Object.keys(MAIN.ALG)) {
 }
 
 // ---- class map: canonical case key -> subset id, generated from membership.
-// The trainer's buildPools reads this (esbuild inlines it at bundle time).
+// No page consumes it at runtime (the trainer fetches data/skewb_algs.json
+// directly); it ships as part of the compiled data-quality gate that
+// tools/check-sheet.mjs re-validates.
 const CLASSMAP = {};
 const classmapConflicts = [];
 for (const [canon, rec] of Object.entries(byKey)) {

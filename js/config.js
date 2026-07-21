@@ -13,6 +13,10 @@ window.OO_CONFIG = {
     appId: "1:276959790417:web:c902eb3b39c60d81a4bf70"
   },
 
+  // UI gating ONLY (shows the admin/moderation tabs). Actual write access is
+  // enforced by the Firestore rules, which trust solely the admins/{uid}
+  // collection — an email here with no admins doc gets "Missing or
+  // insufficient permissions" on every admin query. See SETUP.md.
   adminEmails: ["harsha.paladugu2@gmail.com"],   // your Google account email
 
   // Public Google Form where visitors can apply to become a moderator. Paste

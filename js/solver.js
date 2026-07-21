@@ -71,7 +71,7 @@ function setNota(v) {
 const UI = {
   scramble: '',
   parsed: null, state: null, heldFl: null, dopt: null,
-  methods: { fl: true, tcll: true, eg2: true },
+  methods: { fl: true, tcll: true, eg2: true },   // KEEP IN SYNC with CORE.METHOD_DEFS ids
   caps: Object.fromEntries(Object.keys(CORE.METHOD_DEFS).map(id => [id, CORE.METHOD_DEFS[id].cap])),
   buckets: null,            // total movecount -> items (raw from core)
   moreLens: false,          // longer-movecount cards expanded
@@ -84,6 +84,7 @@ const SHOW_LENS = 3;        // movecount cards shown before the expander
 const METHOD_LABEL = Object.fromEntries(Object.keys(CORE.METHOD_DEFS).map(id => [id, CORE.METHOD_DEFS[id].name]));
 const METHOD_ORDER = ['fl', 'tcll', 'eg2'];
 // first-step comment for the reconstruction view, per method
+// (KEEP IN SYNC with CORE.METHOD_DEFS — a method added to the registry needs a row here)
 const FACE_NAME = { U: 'top', D: 'bottom', F: 'front', B: 'back', R: 'right', L: 'left' };
 const VLABEL = {
   fl: f => 'first layer (' + FACE_NAME[f] + ')',
@@ -308,6 +309,7 @@ function render() {
   }
 }
 installErrorToast();
+// console/debug handle only — no in-repo consumers; handy for driving the solver from devtools
 window.OOSolver = { get UI() { return UI; }, runSearch, onSolve, get C() { return C; } };
 window.addEventListener('DOMContentLoaded', boot);
 })();

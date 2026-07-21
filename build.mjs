@@ -1,7 +1,7 @@
 /* Build the trainer bundle from src/trainer into the live artifact js/trainer.js.
  *
- * The source is now the source of truth for the deployed trainer; trainer.html
- * loads js/engine.js + js/render.js (shared renderer) then this bundle.
+ * src/trainer is the source of truth for the deployed trainer; trainer.html
+ * loads js/engine.js + js/render.js + js/tables.js, then this bundle.
  *
  *   node build.mjs           one-off build
  *   node build.mjs --watch   rebuild on change
@@ -12,7 +12,7 @@ const options = {
   entryPoints: ['src/trainer/index.jsx'],
   bundle: true,
   minify: true,
-  format: 'iife',                 // matches the original bundle (self-executing, no module system)
+  format: 'iife',                 // self-executing classic script — the page has no module system
   target: 'es2018',
   jsx: 'transform',               // classic runtime: source imports React and uses JSX
   outfile: 'js/trainer.js',

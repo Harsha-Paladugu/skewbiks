@@ -150,8 +150,13 @@ function makeSolverCore(E, dist, algData) {
   };
   // engine rot letters denote the physical INVERSE of the same-name rotation
   const ENG_ROT_PHYS = { x: pInv(PHYS_XYZ.x), y: pInv(PHYS_XYZ.y), z: pInv(PHYS_XYZ.z) };
-  // physical execution perm of a parsed token list from an identity start
-  // (tokens carry .c = the corner a move letter names; both notations)
+  // physical execution perm of a parsed token list from an identity start,
+  // reading rotation tokens as ENGINE letters (tokens carry .c = the corner a
+  // move letter names). NEVER use this on authored `ns` sheet texts — their
+  // rotation letters are SHEET letters; use physPermNS below, or you repeat
+  // the 2026-07-10 bug that silently mis-indexed all 916 mid-rotation finish
+  // bodies. physPerm is only for engine-letter strings the core writes itself
+  // (e.g. LEAD engStr) and for WCA-field scramble texts.
   function physPerm(toks) {
     let C = ID30;
     for (const t of toks)
@@ -628,6 +633,8 @@ function makeSolverCore(E, dist, algData) {
     return { text: String(text), ok: false };
   }
 
+  // physPerm reads ENGINE rotation letters, physPermNS reads SHEET letters —
+  // authored `ns` texts MUST go through physPermNS (see their doc comments).
   return { emitNS, LEAD, ROT24, physPerm, physPermNS, sheetStrPerm, heldFacelets, SOLVED24_KEYS, flKey, pApply, pInv,
            foldLeadRots, targets, dAnchored, algIndex, search, methodView, METHOD_DEFS, syms, rotBy,
            layerDownFacelets, sheetLineFor };

@@ -4,8 +4,9 @@
  * when signed in as an admin — add or remove algorithms per case.
  *
  * Single source of truth: data/skewb_algs.json (version-controlled). This
- * page reads it directly; the trainer/solver read the compiled js/sheet.js
- * derived from it. There is no live shared store — admin edits are a per-browser
+ * page, the trainer AND the solver all fetch it directly at runtime; the
+ * compiled js/sheet.js + data/classmap.json are the build's data-quality gate
+ * (npm run check) with no page consumer. There is no live shared store — admin edits are a per-browser
  * DRAFT (localStorage) published with the Export button (download JSON → commit
  * → rebuild). Alg display notation is normalized by the shared engine.normAlg,
  * the same function the compiler uses, so this page and the trainer match.
@@ -144,6 +145,10 @@
   //              anchor's own view (prependAUF(p, anchor))
   //   canons   = the case's canonical keys (≤ 2: Front/Back + Right/Left)
   //   anchorDir= the anchor's authored direction (labels pks[0]); Front if unset
+  // KEEP IN SYNC: src/trainer/skewb-core.mjs maintains its own copy of this
+  // case-model layer (casePres / nav comparator / buildModel) — deliberately,
+  // per CLAUDE.md ("substrate stays local to the trainer"). Mirror behavioral
+  // changes there; skewb-core's copies cite this file.
   const presCache = new Map();
   function casePres(subsetKey, c) {
     const id = caseId(subsetKey, c.name);

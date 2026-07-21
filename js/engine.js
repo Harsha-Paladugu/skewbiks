@@ -552,9 +552,14 @@ function makeFull48Canon(syms, dist) {
 // letters. Uppercase F R B L = the four TOP corners, lowercase f r b l = the
 // four BOTTOM corners, named front/right/back/left in the WCA scrambling hold
 // (UFL corner toward you). Plain = 120° CW seen from outside that corner,
-// ' = CCW; x y z rotations as in WCA. Source (the notation the Sarah/NS 2.0
-// alg sheets use): rubikskewb.web.fc2.com/skewb/notation.html — see
-// docs/skewb-ground-truth.md. The WCA letters are the NS subset {r, B, l, b}
+// ' = CCW. CAUTION (rotations): the engine's x/y/z tokens are each the
+// physical INVERSE of the same-name WCA rotation, and the method sheets'
+// rotation letters differ again (sheet x/y/z = engine z'/y'/x) — engine
+// rotation letters are INTERNAL bookkeeping, never shown to users; read
+// docs/skewb-ground-truth.md §Notation before touching them. Source (the
+// notation the Sarah/NS 2.0 alg sheets use):
+// rubikskewb.web.fc2.com/skewb/notation.html — see docs/skewb-ground-truth.md.
+// The WCA letters are the NS subset {r, B, l, b}
 // (WCA R=NS r, U=B, L=l, B=b — a pure token rename); NS F f R L twist corners
 // WCA can't name without rotations.
 const NS_CORNER = { F:'UFL', R:'UFR', B:'UBR', L:'UBL', f:'DFL', r:'DFR', b:'DBR', l:'DBL' };
@@ -578,6 +583,9 @@ function countMoves(parsed) { let n = 0; for (const t of parsed) if (t.kind === 
 
 // rotation frames: pure geometry (face perm + corner map), incl. tetrad-swapping
 // 90° x/y/z. Never applied to states — only used to resolve written letters.
+// NOTE: each x/y/z token here is the physical INVERSE of the same-name WCA
+// rotation (machine-verified; ground-truth §Notation notes) — internal only,
+// humans sight-read the sheets' letters, which differ from both.
 const XYZ_FP = {
   x: { R:'R', L:'L', F:'U', U:'B', B:'D', D:'F' },  // about R, in R's direction
   y: { U:'U', D:'D', F:'L', L:'B', B:'R', R:'F' },  // about U, in U's direction

@@ -38,11 +38,14 @@ const moderatorFormUrl = () => String(CFG.moderatorFormUrl || '').trim();
 // The IndexedDB cache + BFS/class-enumeration live in the shared js/tables.js
 // (window.OOTables), so the census and the solver share one dist table without
 // the old single-key value-shape ambiguity. tables.js must load before this file.
+// buildTables() attaches more members once the tables exist (documented at the
+// attach sites): entryCanonOf / pairCanonOf / hold / mirrorEntryOf (the
+// hold-24 + 48-group canonicalizers) and cfIdx / cfCount (the CF subset).
 const T = { dist: null, reps: null, depths: null, depthIdx: null, syms: null, rotByCorner: null, ready: false };
 // Depth-0 (the solved state) can't take a length-0 solution, so it counts as
 // solved by definition. `o` is an ordinal into T.reps.
 const isTrivial = (o) => T.depths[o] === 0;
-let browseFilter = 'all';   // depth browser: 'all' | 'unsolved' | 'solved'
+let browseFilter = 'all';   // depth browser: 'all' | 'unsolved' | 'solved' — module state on purpose: it resets per page load, not per navigation
 
 async function buildTables(report) {
   if (!window.OOTables) throw new Error('js/tables.js must load before js/oo.js');
@@ -1013,5 +1016,6 @@ async function render() {
 installErrorToast();
 window.addEventListener('hashchange', render);
 window.addEventListener('DOMContentLoaded', boot);
+// console/debug handle only — no in-repo consumers; handy for poking the live tables
 window.OOApp = { verifySolution, pairOf, T, get DB() { return DB; }, ordinalOf };
 })();

@@ -73,6 +73,9 @@
   /* ---------------- demo (no Firebase config) ---------------- */
   // Persists a fake session + per-user docs in localStorage so the "signed in
   // everywhere" flow can be exercised without a backend.
+  // The 'pyraminx-' prefix is inherited from upstream and KEPT deliberately:
+  // renaming would orphan existing browsers' demo data and add diff churn
+  // against upstream cherry-picks for zero user-visible gain.
   const DEMO_USER_KEY = 'pyraminx-account-user';
   const demoDocKey = uid => 'pyraminx-account-demo-' + uid;
   function initDemo() {
