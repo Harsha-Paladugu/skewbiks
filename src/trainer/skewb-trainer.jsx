@@ -68,6 +68,16 @@ function CaseNet({ state, w, mask }) {
 }
 
 // alg text as evenly-spaced tokens, rotations tinted (algs-page convention)
+// immutable Set toggle — the add/remove idiom every membership toggle shares
+const toggledSet = (s, k) => { const n = new Set(s); if (n.has(k)) n.delete(k); else n.add(k); return n; };
+// stats formatting: percentage + mean time (fmt is the shared seconds format)
+const pct = (hit, n) => Math.round((hit / n) * 100) + "%";
+const mean = (sum, n) => fmt(sum / n);
+// the one-look stats key: built by gradeOnelook, parsed by the stats table —
+// ONE pair of functions so the format can never drift between them
+const onelookKey = (last) => last.sub === "len" ? "len" + SEP + last.n : "sol" + SEP + last.sol.nota + SEP + last.sol.raw;
+const parseOnelookKey = (k) => { const i = k.indexOf(SEP); return { sub: k.slice(0, i), rest: k.slice(i + 1) }; };
+
 function AlgText({ text }) {
   return (
     <span className="mono alg">
@@ -159,51 +169,10 @@ export default function SkewbTrainer() {
       try {
         const res = await window.storage.get(STORE_KEY);
         if (res && res.value && !cancelled) {
-          const d = JSON.parse(res.value);
-          // strict shape validation — unknown/legacy blobs are simply ignored
-          if (d && typeof d === "object") {
-            if (Array.isArray(d.subsetSel)) setSubsetSel(d.subsetSel.filter((k) => typeof k === "string"));
-            if (d.groupSel && typeof d.groupSel === "object") setGroupSel(d.groupSel);
-            if (Array.isArray(d.caseOff)) setCaseOff(new Set(d.caseOff.filter((x) => typeof x === "string")));
-            if (Array.isArray(d.caseKnown)) setCaseKnown(new Set(d.caseKnown.filter((x) => typeof x === "string")));
-            if (["all", "learning", "known"].includes(d.scope)) setScope(d.scope);
-            if (["drill", "recap", "recog", "onelook"].includes(d.mode)) setMode(d.mode);
-            if (typeof d.setupOpen === "boolean") setSetupOpen(d.setupOpen);
-            if (d.caseStats && typeof d.caseStats === "object") {
-              const cs = {};
-              for (const [k, st] of Object.entries(d.caseStats)) {
-                if (st && typeof st.n === "number" && typeof st.sum === "number") cs[k] = st;
-              }
-              setCaseStats(cs);
-            }
-            const readGrades = (src, set) => {
-              if (!src || typeof src !== "object") return;
-              const rs = {};
-              for (const [k, st] of Object.entries(src)) {
-                if (st && typeof st.n === "number" && typeof st.hit === "number") rs[k] = st;
-              }
-              set(rs);
-            };
-            readGrades(d.recogStats, setRecogStats);
-            readGrades(d.centersStats, setCentersStats);
-            readGrades(d.onelookStats, setOnelookStats);
-            if (d.recogView === "full" || d.recogView === "centers") setRecogView(d.recogView);
-            if (d.onelookView === "len" || d.onelookView === "sol") setOnelookView(d.onelookView);
-            if (Number.isInteger(d.onelookLen) && d.onelookLen >= 0 && d.onelookLen <= 6) setOnelookLen(d.onelookLen);
-            const okSol = (s) => s && typeof s.raw === "string" && s.raw.length <= 200 &&
-              (s.nota === "wca" || s.nota === "ns");
-            if (Array.isArray(d.onelookSols)) {
-              setOnelookSols(d.onelookSols.filter(okSol).slice(0, 24)
-                .map((s) => ({ raw: s.raw, nota: s.nota, on: s.on !== false })));
-            } else if (okSol(d.onelookSol)) { // pre-list blobs stored a single solution
-              setOnelookSols([{ raw: d.onelookSol.raw, nota: d.onelookSol.nota, on: true }]);
-            }
-            if (Array.isArray(d.centerSel)) {
-              const cs = d.centerSel.filter((f) => core.RECOG_CENTERS.includes(f)).slice(0, 3);
-              if (cs.length) setCenterSel(cs);
-            }
-            if (typeof d.cornersOn === "boolean") setCornersOn(d.cornersOn);
-          }
+          // shape validation lives in core.readStoredState (one descriptor
+          // drives read/write/reset); unknown/legacy blobs yield an empty patch
+          const patch = core.readStoredState(res.value);
+          for (const k of Object.keys(patch)) fieldBindings.current[k][1](patch[k]);
         }
       } catch (e) { /* first run / foreign blob */ }
       loadedStore.current = true;
@@ -245,16 +214,30 @@ export default function SkewbTrainer() {
   }, [mode, ready]);
 
   // ---------- persistence ----------
+  // the ONE per-field enumeration in the component: field -> [value, setter],
+  // in core.PERSIST_KEYS order. The boot reader, the persist payload and the
+  // debounce deps all derive from it (the field semantics live in core's
+  // PERSIST_FIELDS descriptor).
+  const FIELD_BINDINGS = {
+    subsetSel: [subsetSel, setSubsetSel], groupSel: [groupSel, setGroupSel],
+    caseOff: [caseOff, setCaseOff], caseKnown: [caseKnown, setCaseKnown],
+    scope: [scope, setScope], mode: [mode, setMode], setupOpen: [setupOpen, setSetupOpen],
+    caseStats: [caseStats, setCaseStats], recogStats: [recogStats, setRecogStats],
+    centersStats: [centersStats, setCentersStats], recogView: [recogView, setRecogView],
+    centerSel: [centerSel, setCenterSel], cornersOn: [cornersOn, setCornersOn],
+    onelookView: [onelookView, setOnelookView], onelookLen: [onelookLen, setOnelookLen],
+    onelookSols: [onelookSols, setOnelookSols], onelookStats: [onelookStats, setOnelookStats],
+  };
+  const fieldBindings = useRef(FIELD_BINDINGS);
+  fieldBindings.current = FIELD_BINDINGS;
   const saveTimer = useRef(0);
   const persist = useCallback((over) => {
     try {
-      window.storage.set(STORE_KEY, JSON.stringify({
-        subsetSel, groupSel, caseOff: [...caseOff], caseKnown: [...caseKnown],
-        scope, mode, setupOpen, caseStats, recogStats, centersStats, recogView, centerSel, cornersOn,
-        onelookView, onelookLen, onelookSols, onelookStats, ...over,
-      })).catch(() => {});
+      const values = Object.fromEntries(Object.entries(fieldBindings.current).map(([k, b]) => [k, b[0]]));
+      window.storage.set(STORE_KEY, JSON.stringify({ ...core.writeStoredState(values), ...over })).catch(() => {});
     } catch (e) {}
-  }, [subsetSel, groupSel, caseOff, caseKnown, scope, mode, setupOpen, caseStats, recogStats, centersStats, recogView, centerSel, cornersOn, onelookView, onelookLen, onelookSols, onelookStats]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- positional deps derived from the one binding table
+  }, Object.values(FIELD_BINDINGS).map((b) => b[0]));
   useEffect(() => {
     if (!loadedStore.current) return;
     clearTimeout(saveTimer.current);
@@ -464,24 +447,9 @@ export default function SkewbTrainer() {
 
   // best-effort name for the state left after the user's layer: exact stateKey
   // match over every sheet case's 4 presentation states (built lazily once)
-  const caseIndexRef = useRef(null);
-  const caseOfState = useCallback((st) => {
-    if (!st || !ready) return null;
-    if (E.eq(st, E.solved())) return { solved: true };
-    if (!caseIndexRef.current) {
-      const map = new Map();
-      for (const sub of model().subsets) {
-        for (const c of sub.cases) {
-          const cp = core.casePres(c);
-          if (!cp.ok) continue;
-          const a0 = DIRS.indexOf(cp.anchorDir);
-          cp.pks.forEach((pk, p) => { if (!map.has(pk)) map.set(pk, { c, d: (p + a0) % 4, subset: sub.key }); });
-        }
-      }
-      caseIndexRef.current = map;
-    }
-    return caseIndexRef.current.get(E.stateKey(st)) || null;
-  }, [ready]);
+  // pure model lookup — lives in skewb-core (Node-tested); the core memoizes
+  // its index per model object
+  const caseOfState = useCallback((st) => (ready ? core.caseOfState(model(), st) : null), [ready]);
 
   const nextOnelook = useCallback(() => {
     setPhase("ready"); setLast(null);
@@ -528,7 +496,7 @@ export default function SkewbTrainer() {
   const gradeOnelook = useCallback((hit) => {
     if (phase !== "stopped" || !last || last.kind !== "onelook") return;
     // sol keys carry the notation: the same letters mean different moves in WCA vs NS
-    const key = last.sub === "len" ? "len" + SEP + last.n : "sol" + SEP + last.sol.nota + SEP + last.sol.raw;
+    const key = onelookKey(last);
     const label = last.sub === "len" ? last.n + " move" + (last.n === 1 ? "" : "s") : last.sol.raw;
     setOnelookStats((os) => {
       const prev = os[key] || { n: 0, hit: 0, sum: 0 };
@@ -548,31 +516,47 @@ export default function SkewbTrainer() {
     if (mode === "recog") { nextRecog(); return; }
     if (mode === "onelook") { nextOnelook(); return; }
     if (mode === "drill") { nextDrill(); return; }
-    setRecap((r) => {
-      if (!r) return r;
-      const idx = r.idx + 1;
-      if (idx >= r.queue.length) { setCurrent(null); return { ...r, idx }; }
-      setCurrent(makeDrill(r.queue[idx]));
-      return { ...r, idx };
-    });
-  }, [mode, nextDrill, nextRecog, nextOnelook, makeDrill]);
+    // recap: progression computed OUTSIDE the state updater (React may invoke
+    // updaters twice) — sibling setStates, the startRecap pattern
+    if (!recap) return;
+    const idx = recap.idx + 1;
+    setRecap({ ...recap, idx });
+    setCurrent(idx >= recap.queue.length ? null : makeDrill(recap.queue[idx]));
+  }, [mode, nextDrill, nextRecog, nextOnelook, makeDrill, recap]);
 
-  // Regenerate on boot/mode switch (stage reset) and on pool edits (groups/
-  // dirs/cases/known/scope). A pool edit only swaps the PENDING problem — it
-  // must not clear a stop-screen reveal (e.g. marking the just-solved case
-  // known), so phase/last are reset only on mode switches or mid-run edits.
+  // ---------- problem regeneration (one generator, classified requests) ----------
+  // Triggers only REQUEST a problem (tagged with why); the single generator
+  // effect below owns generation AND the stage-reset policy in one place:
+  // mode switches and mid-run changes clear the stage (phase/last); a
+  // stop-screen pool edit only swaps the PENDING problem — it must not clear
+  // the reveal (e.g. marking the just-solved case known).
   const genMode = useRef(null);
+  const [regen, setRegen] = useState(null);            // { kind, seq }
+  const requestProblem = useCallback((kind) =>
+    setRegen((r) => ({ kind, seq: (r ? r.seq : 0) + 1 })), []);
+  // boot / mode switch / pool edits (groups/dirs/cases/known/scope)
+  useEffect(() => { if (ready) requestProblem("pool"); }, [ready, mode, entries, requestProblem]);
   useEffect(() => {
-    if (!ready) return;
+    if (!regen || !ready) return;
     const modeSwitch = genMode.current !== mode;
     genMode.current = mode;
     if (modeSwitch || phase === "running") { setPhase("ready"); setLast(null); }
-    if (mode === "onelook") { if (modeSwitch) nextOnelook(); return; } // one-look ignores the pool
+    if (mode === "onelook") {
+      // one-look ignores the pool; a settings 'len' request without the table
+      // clears the stage so the building notice shows instead of a stale problem
+      if (regen.kind === "pool") { if (modeSwitch) nextOnelook(); return; }
+      if (regen.kind === "settings" && onelookView === "len" && !fldistRef.current) {
+        setPhase("ready"); setLast(null); setCurrent(null); return;
+      }
+      nextOnelook();
+      return;
+    }
+    if (regen.kind === "settings") { if (mode === "recog") nextRecog(); return; }
     if (mode === "drill") nextDrill();
     else if (mode === "recap") startRecap();
     else if (modeSwitch || phase !== "stopped") nextRecog();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, mode, entries]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fires per request; everything else is read fresh
+  }, [regen]);
 
   // ---------- timer ----------
   const tick = useCallback(() => {
@@ -654,8 +638,7 @@ export default function SkewbTrainer() {
       }
       if (phase === "stopped" && e.code === "KeyK" && last && last.kind === "drill") {
         e.preventDefault();
-        const k = knownKey(last.c.uid, last.d);
-        setCaseKnown((s) => { const n = new Set(s); if (n.has(k)) n.delete(k); else n.add(k); return n; });
+        setCaseKnown((s) => toggledSet(s, knownKey(last.c.uid, last.d)));
         return;
       }
       if (phase === "running") { e.preventDefault(); stopTimer(); return; }
@@ -668,23 +651,20 @@ export default function SkewbTrainer() {
   useEffect(() => () => cancelAnimationFrame(raf.current), []);
   useEffect(() => { if (phase !== "running") cancelAnimationFrame(raf.current); }, [phase]);
   useEffect(() => { if (mode === "drill" || mode === "recap") lastAlgoMode.current = mode; }, [mode]);
-  // switching the recognition view or its quiz settings regenerates the problem
+  // switching the recognition view / quiz settings, or the one-look settings,
+  // regenerates the problem (the generator effect above does the work)
   useEffect(() => {
-    if (ready && mode === "recog") nextRecog();
+    if (ready && mode === "recog") requestProblem("settings");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recogView, centerSel, cornersOn]);
-  // ditto for one-look settings; a 'len' request without the table clears the
-  // stage so the building notice shows instead of a stale problem
   useEffect(() => {
-    if (!ready || mode !== "onelook") return;
-    if (onelookView === "len" && !fldistRef.current) { setPhase("ready"); setLast(null); setCurrent(null); return; }
-    nextOnelook();
+    if (ready && mode === "onelook") requestProblem("settings");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onelookView, onelookLen, activePlans]);
   // the lazy fldist table landing fulfils a waiting 'len' request, exactly once
   // (progress ticks and the 'sol' sub-view must NOT regenerate — build churn)
   useEffect(() => {
-    if (ready && mode === "onelook" && onelookView === "len" && flBoot === "ready" && !current) nextOnelook();
+    if (ready && mode === "onelook" && onelookView === "len" && flBoot === "ready" && !current) requestProblem("settings");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [flBoot]);
 
@@ -698,8 +678,7 @@ export default function SkewbTrainer() {
     const cur = groupsOf(sub);
     setGroupSel((s) => ({ ...s, [sub.key]: cur.includes(value) ? cur.filter((v) => v !== value) : [...cur, value] }));
   };
-  const toggleCase = (uid) =>
-    setCaseOff((s) => { const n = new Set(s); if (n.has(uid)) n.delete(uid); else n.add(uid); return n; });
+  const toggleCase = (uid) => setCaseOff((s) => toggledSet(s, uid));
   const toggleKnown = (uid) =>
     setCaseKnown((s) => {
       const n = new Set(s);
@@ -745,97 +724,20 @@ export default function SkewbTrainer() {
     [session, mode]);
 
   const resetStats = () => {
-    setCaseStats({});
-    setRecogStats({});
-    setCentersStats({});
-    setOnelookStats({});
+    // every stat field, from the same descriptor persist() serializes
+    for (const k of Object.keys(core.STAT_RESET)) fieldBindings.current[k][1]({});
     setSession([]);
     setLast(null);
-    persist({ caseStats: {}, recogStats: {}, centersStats: {}, onelookStats: {} });
+    persist(core.STAT_RESET);
   };
 
-  // ---------- alg list for a shown (case, dir) ----------
-  function AlgList({ c, d }) {
-    const rows = core.algsForDir(c, d);
-    if (!rows.length) return <div className="empty">No algorithms for this view yet.</div>;
-    return (
-      <div className="alglist">
-        {rows.map((row, i) => (
-          <div key={i} className={"algrow" + (row.a.suspect ? " suspectrow" : "")}>
-            <span className={"ychip mono" + (row.k ? "" : " blank")}>{row.k ? Y_PREFIX[row.k] : ""}</span>
-            <span className={"fmkey mono" + (core.firstMoveOf(row) ? "" : " blank")}>{core.firstMoveOf(row) || "—"}</span>
-            <AlgText text={rowText(row)} />
-            {row.a.rating === "best" ? <span className="ratetag best">best</span> : null}
-            {row.a.rating === "poor" ? <span className="ratetag poor">poor</span> : null}
-            {row.a.suspect ? <span className="warntag" title="flagged suspect at import (off its case's rotation class)">⚠</span> : null}
-          </div>
-        ))}
-      </div>
-    );
-  }
-
-  // ---------- case browser modal ----------
-  function CaseBrowser({ subKey }) {
-    const sub = model().subsets.find((s) => s.key === subKey);
-    const [grp, setGrp] = useState(sub.groups[0] ? sub.groups[0].value : "");
-    const [filter, setFilter] = useState("");
-    const g = sub.groups.find((x) => x.value === grp) || sub.groups[0];
-    const filterField = sub.nav && sub.nav.filter && sub.nav.filter.field;
-    const filterVals = filterField ? [...new Set(g.cases.map((c) => c[filterField]).filter((v) => v != null))] : [];
-    let list = core.navSorted(sub, g.cases);
-    if (filter && filterField) list = list.filter((c) => c[filterField] === filter);
-    return (
-      <div className="overlay" onPointerDown={(e) => { if (e.target === e.currentTarget) setCaseBrowser(null); }}>
-        <div className="modal">
-          <div className="modalhead">
-            <div>
-              <div className="modaltitle">{sub.name} cases</div>
-              <span className="tag" style={{ "--cdot": subColor(sub.key) }}>
-                <span className="dot" />{enabledCount(sub).on}/{enabledCount(sub).total} on · {knownCount(sub)} known
-              </span>
-            </div>
-            <button className="closebtn" onClick={() => setCaseBrowser(null)}>{"×"}</button>
-          </div>
-          <div className="chips" style={{ marginBottom: 8 }}>
-            {sub.groups.map((x) => (
-              <button key={x.value} className={"mode" + (x.value === g.value ? " on" : "")}
-                onClick={() => { setGrp(x.value); setFilter(""); }}>{x.label}</button>
-            ))}
-            {filterVals.length > 1 && (
-              <select className="filtersel" value={filter} onChange={(e) => setFilter(e.target.value)}
-                aria-label={sub.nav.filter.label}>
-                <option value="">{sub.nav.filter.label}: all</option>
-                {filterVals.map((v) => <option key={v} value={v}>{String(v)}</option>)}
-              </select>
-            )}
-          </div>
-          <div className="presets" style={{ margin: "0 0 10px" }}>
-            <button className="preset" onClick={() => setCaseOff((s) => { const n = new Set(s); for (const c of list) n.delete(c.uid); return n; })}>enable shown</button>
-            <button className="preset" onClick={() => setCaseOff((s) => { const n = new Set(s); for (const c of list) n.add(c.uid); return n; })}>disable shown</button>
-            <button className="preset" onClick={() => setCaseKnown((s) => { const n = new Set(s); for (const c of list) n.add(knownKey(c.uid, 0)); return n; })}>mark shown known</button>
-            <button className="preset" onClick={() => setCaseKnown((s) => { const n = new Set(s); for (const c of list) n.delete(knownKey(c.uid, 0)); return n; })}>mark shown unknown</button>
-          </div>
-          <div className="chips">
-            {list.map((c) => {
-              const kn = caseKnown.has(knownKey(c.uid, 0));
-              return (
-                <span key={c.uid} className="markwrap">
-                  <button className={"chip" + (caseOff.has(c.uid) ? "" : " on")}
-                    style={{ "--cdot": subColor(sub.key) }} onClick={() => toggleCase(c.uid)}>
-                    <span className="dot" />{c.name}{kn ? " ✓" : ""}
-                  </button>
-                  <button className={"markbtn ok" + (kn ? " sel" : "")} title="mark known"
-                    onClick={() => toggleKnown(c.uid)}>K</button>
-                </span>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-    );
-  }
+  // (AlgList and CaseBrowser are MODULE-scope components — see below the
+  // SkewbTrainer body. Declaring them in-body made React remount them on
+  // every parent render, resetting CaseBrowser's group/filter state whenever
+  // one of its own chip clicks touched parent state.)
 
   // ---------- render ----------
+  const isAlgoMode = mode === "drill" || mode === "recap";   // the Algorithm tab's two sub-modes
   const recapDone = mode === "recap" && recap && recap.idx >= recap.queue.length;
   const m = model();
 
@@ -863,8 +765,8 @@ export default function SkewbTrainer() {
         )}
 
         <div className="modes modetabs">
-          <button className={"mode" + (mode === "drill" || mode === "recap" ? " on" : "")}
-            onClick={() => { if (mode !== "drill" && mode !== "recap") setMode(lastAlgoMode.current); }}>Algorithm</button>
+          <button className={"mode" + (isAlgoMode ? " on" : "")}
+            onClick={() => { if (!isAlgoMode) setMode(lastAlgoMode.current); }}>Algorithm</button>
           <button className={"mode" + (mode === "recog" ? " on" : "")} onClick={() => setMode("recog")}>Recognition</button>
           <button className={"mode" + (mode === "onelook" ? " on" : "")} onClick={() => setMode("onelook")}>One-look</button>
         </div>
@@ -874,19 +776,11 @@ export default function SkewbTrainer() {
           <>
             <div className="chips" style={{ alignItems: "center" }}>
               <span className="grouplabel">layer</span>
-              <div className="modes">
-                {[["len", "Random"], ["sol", "My solutions"]].map(([v, l]) => (
-                  <button key={v} className={"mode" + (onelookView === v ? " on" : "")} onClick={() => setOnelookView(v)}>{l}</button>
-                ))}
-              </div>
+              <Segmented options={[["len", "Random"], ["sol", "My solutions"]]} value={onelookView} onChange={setOnelookView} />
               {onelookView === "len" ? (
                 <>
                   <span className="grouplabel">moves to a layer</span>
-                  <div className="modes">
-                    {[0, 1, 2, 3, 4, 5, 6].map((n) => (
-                      <button key={n} className={"mode" + (onelookLen === n ? " on" : "")} onClick={() => setOnelookLen(n)}>{n}</button>
-                    ))}
-                  </div>
+                  <Segmented options={[0, 1, 2, 3, 4, 5, 6].map((n) => [n, n])} value={onelookLen} onChange={setOnelookLen} />
                 </>
               ) : (
                 <>
@@ -929,16 +823,12 @@ export default function SkewbTrainer() {
         )}
 
         {/* ---------- setup (Algorithm + Recognition share the pool) ---------- */}
-        {(mode === "drill" || mode === "recap" || mode === "recog") && (
+        {(isAlgoMode || mode === "recog") && (
           <>
             {mode === "recog" && (
               <div className="chips" style={{ alignItems: "center" }}>
                 <span className="grouplabel">view</span>
-                <div className="modes">
-                  {[["full", "Full"], ["centers", "Center cases"]].map(([v, l]) => (
-                    <button key={v} className={"mode" + (recogView === v ? " on" : "")} onClick={() => setRecogView(v)}>{l}</button>
-                  ))}
-                </div>
+                <Segmented options={[["full", "Full"], ["centers", "Center cases"]]} value={recogView} onChange={setRecogView} />
                 {recogView === "centers" && (
                   <>
                     <span className="grouplabel">centers</span>
@@ -961,19 +851,11 @@ export default function SkewbTrainer() {
               </div>
             )}
             <div className="chips" style={{ alignItems: "center" }}>
-              {(mode === "drill" || mode === "recap") && (
-                <div className="modes">
-                  {[["drill", "Drill"], ["recap", "Recap"]].map(([v, l]) => (
-                    <button key={v} className={"mode" + (mode === v ? " on" : "")} onClick={() => setMode(v)}>{l}</button>
-                  ))}
-                </div>
+              {isAlgoMode && (
+                <Segmented options={[["drill", "Drill"], ["recap", "Recap"]]} value={mode} onChange={setMode} />
               )}
               <span className="grouplabel">practice</span>
-              <div className="modes">
-                {[["all", "All"], ["learning", "Learning"], ["known", "Known"]].map(([v, l]) => (
-                  <button key={v} className={"mode" + (scope === v ? " on" : "")} onClick={() => setScope(v)}>{l}</button>
-                ))}
-              </div>
+              <Segmented options={[["all", "All"], ["learning", "Learning"], ["known", "Known"]]} value={scope} onChange={setScope} />
             </div>
 
             <div className="card setupcard">
@@ -1084,38 +966,21 @@ export default function SkewbTrainer() {
                     : last.dk ? "It was " + last.answerKey
                     : "Not quite — " + last.answerKey + " (you picked " + last.picked + ")"}
                 </div>
-                <div className="reveal">
-                  <span className="tag" style={{ "--cdot": subColor(last.subset) }}>
-                    <span className="dot" />{last.subset}
-                  </span>
-                  <span className="casename">{last.c.name}</span>
-                  {last.d ? <span className="bartag">{DIRS[last.d]} view</span> : null}
-                  <span className="mono">{fmt(last.ms)}s</span>
+                <CaseReveal subset={last.subset} name={last.c.name} d={last.d} ms={last.ms} subColor={subColor}>
                   <button className="restart" style={{ marginTop: 0 }} onClick={nextRecog}>Next (space)</button>
-                </div>
+                </CaseReveal>
                 {last.others && last.others.length > 0 && (
                   <div className="hint" style={{ marginTop: 6 }}>
                     ⚠ with these centers this view is also consistent with: {last.others.join(", ")}
                   </div>
                 )}
-                <AlgList c={last.c} d={last.d} />
+                <AlgList c={last.c} d={last.d} rowText={rowText} />
               </>
             ) : phase === "stopped" && last ? (
               <>
-                <div className="reveal">
-                  <span className="tag" style={{ "--cdot": subColor(last.subset) }}>
-                    <span className="dot" />{last.subset}
-                  </span>
-                  <span className="casename">{last.c.name}</span>
-                  {last.d ? <span className="bartag">{DIRS[last.d]} view</span> : null}
-                  <span className="mono">{fmt(last.ms)}s</span>
-                </div>
-                <div className="graderow">
-                  <button className="gradebtn hit" onClick={() => gradeRecog(true)}>Recognized ✓ (1)</button>
-                  <button className="gradebtn miss" onClick={() => gradeRecog(false)}>Missed ✗ (2)</button>
-                  <button className="preset" onClick={nextRecog}>skip (space)</button>
-                </div>
-                <AlgList c={last.c} d={last.d} />
+                <CaseReveal subset={last.subset} name={last.c.name} d={last.d} ms={last.ms} subColor={subColor} />
+                <GradeRow hitLabel="Recognized" missLabel="Missed" onGrade={gradeRecog} onSkip={nextRecog} />
+                <AlgList c={last.c} d={last.d} rowText={rowText} />
               </>
             ) : current.view ? (
               <>
@@ -1187,11 +1052,7 @@ export default function SkewbTrainer() {
                         <span className="casename">solved — nothing left</span>
                       ) : last.match ? (
                         <>
-                          <span className="tag" style={{ "--cdot": subColor(last.match.subset) }}>
-                            <span className="dot" />{last.match.subset}
-                          </span>
-                          <span className="casename">{last.match.c.name}</span>
-                          {last.match.d ? <span className="bartag">{DIRS[last.match.d]} view</span> : null}
+                          <CaseTagParts subset={last.match.subset} name={last.match.c.name} d={last.match.d} subColor={subColor} />
                         </>
                       ) : (
                         <span className="casename">not in your sheets</span>
@@ -1200,11 +1061,7 @@ export default function SkewbTrainer() {
                     </div>
                   </>
                 )}
-                <div className="graderow">
-                  <button className="gradebtn hit" onClick={() => gradeOnelook(true)}>Got it ✓ (1)</button>
-                  <button className="gradebtn miss" onClick={() => gradeOnelook(false)}>Missed ✗ (2)</button>
-                  <button className="preset" onClick={nextOnelook}>skip (space)</button>
-                </div>
+                <GradeRow hitLabel="Got it" missLabel="Missed" onGrade={gradeOnelook} onSkip={nextOnelook} />
               </>
             ) : null}
           </div>
@@ -1216,28 +1073,25 @@ export default function SkewbTrainer() {
             </div>
             <div className={"timer" + (phase === "running" ? " running" : "")}>{fmt(elapsed)}</div>
             {phase === "stopped" && last && last.kind === "drill" ? (
-              <div className="reveal" onPointerDown={(e) => e.stopPropagation()}>
-                <span className="tag" style={{ "--cdot": subColor(last.subset) }}>
-                  <span className="dot" />{last.subset}
-                </span>
-                <span className="casename">{last.c.name}</span>
+              <CaseReveal subset={last.subset} name={last.c.name} subColor={subColor}
+                wrapProps={{ onPointerDown: (e) => e.stopPropagation() }}>
                 {(() => {
                   const k = knownKey(last.c.uid, last.d);
                   const isK = caseKnown.has(k);
                   return (
                     <button className={"markbtn ok" + (isK ? " sel" : "")} title="mark known (K)"
-                      onClick={() => setCaseKnown((s) => { const n = new Set(s); if (n.has(k)) n.delete(k); else n.add(k); return n; })}>
+                      onClick={() => setCaseKnown((s) => toggledSet(s, k))}>
                       {isK ? "Known ✓" : "Mark known"}
                     </button>
                   );
                 })()}
-              </div>
+              </CaseReveal>
             ) : (
               <div className="hint">{phase === "running" ? "tap or any key to stop" : "tap or space to start"}</div>
             )}
             {phase === "stopped" && last && last.kind === "drill" ? (
               <div className="analysis" onPointerDown={(e) => e.stopPropagation()}>
-                <AlgList c={last.c} d={last.d} />
+                <AlgList c={last.c} d={last.d} rowText={rowText} />
               </div>
             ) : null}
           </div>
@@ -1245,163 +1099,11 @@ export default function SkewbTrainer() {
 
         {/* ---------- stats + session ---------- */}
         <div className="panelrow">
-          <div className="card">
-            {mode === "recog" && recogView === "centers" ? (
-              <>
-                <h3>Center cases · {centerSel.length === 3 ? centerSel.slice().sort().join(" ") : "pick 3 centers"}{cornersOn ? " + 2 corners" : ""}</h3>
-                {(() => {
-                  const rows = quizOptions.map((a) => [a, centersStats[a]]).filter(([, s]) => s);
-                  if (!rows.length) return <div className="empty">Answer which center case the visible centers imply (or Don’t know) — accuracy lands here per center case.</div>;
-                  return (
-                    <table>
-                      <thead><tr><th>Center case</th><th>Seen</th><th>Correct</th><th>Don’t know</th><th>Accuracy</th></tr></thead>
-                      <tbody>
-                        {rows.map(([a, s]) => (
-                          <tr key={a}>
-                            <td className="name">{a}</td>
-                            <td className="mono">{s.n}</td>
-                            <td className="mono">{s.hit}</td>
-                            <td className="mono">{s.dk || 0}</td>
-                            <td className="mono">{Math.round((s.hit / s.n) * 100)}%</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  );
-                })()}
-              </>
-            ) : mode === "onelook" ? (
-              <>
-                <h3>One-look</h3>
-                {(() => {
-                  const rows = Object.entries(onelookStats);
-                  if (!rows.length) return <div className="empty">Reveal, then grade yourself (1 got it · 2 missed) — accuracy lands here per layer setting.</div>;
-                  const rank = (k) => {
-                    const i = k.indexOf(SEP);
-                    const sub = k.slice(0, i), rest = k.slice(i + 1);
-                    return sub === "len" ? [0, +rest, ""] : [1, 0, rest];
-                  };
-                  rows.sort(([a], [b]) => {
-                    const ra = rank(a), rb = rank(b);
-                    return (ra[0] - rb[0]) || (ra[1] - rb[1]) || (ra[2] < rb[2] ? -1 : ra[2] > rb[2] ? 1 : 0);
-                  });
-                  return (
-                    <table>
-                      <thead><tr><th>Layer</th><th>Tries</th><th>Got it</th><th>Accuracy</th><th>Mean look</th></tr></thead>
-                      <tbody>
-                        {rows.map(([k, s]) => (
-                          <tr key={k}>
-                            <td className="name">{k.startsWith("sol" + SEP)
-                              ? <><AlgText text={s.label} />{s.nota ? <span className="casesub" style={{ marginLeft: 6 }}>{s.nota.toUpperCase()}</span> : null}</>
-                              : s.label}</td>
-                            <td className="mono">{s.n}</td>
-                            <td className="mono">{s.hit}</td>
-                            <td className="mono">{Math.round((s.hit / s.n) * 100)}%</td>
-                            <td className="mono">{fmt(s.sum / s.n)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  );
-                })()}
-              </>
-            ) : mode === "recog" ? (
-              <>
-                <h3>Recognition</h3>
-                {(() => {
-                  const rows = Object.entries(recogStats);
-                  if (!rows.length) return <div className="empty">Reveal, then grade yourself (1 recognized · 2 missed) — accuracy lands here per case.</div>;
-                  const tot = rows.reduce((a, [, s]) => ({ n: a.n + s.n, hit: a.hit + s.hit, sum: a.sum + s.sum }), { n: 0, hit: 0, sum: 0 });
-                  const missed = rows.filter(([, s]) => s.hit < s.n)
-                    .sort((a, b) => (b[1].n - b[1].hit) - (a[1].n - a[1].hit));
-                  return (
-                    <>
-                      <table>
-                        <thead><tr><th>Graded</th><th>Recognized</th><th>Accuracy</th><th>Mean reveal</th></tr></thead>
-                        <tbody>
-                          <tr>
-                            <td className="mono">{tot.n}</td>
-                            <td className="mono">{tot.hit}</td>
-                            <td className="mono">{Math.round((tot.hit / tot.n) * 100)}%</td>
-                            <td className="mono">{fmt(tot.sum / tot.n)}</td>
-                          </tr>
-                        </tbody>
-                      </table>
-                      {missed.length > 0 && (
-                        <div className="casegrid">
-                          {missed.slice(0, 24).map(([uid, s]) => {
-                            const c = uidIndex.get(uid);
-                            return (
-                              <div key={uid} className="casecard">
-                                {c ? <CaseNet state={core.stateForDir(c, 0)} w={120} /> : null}
-                                <div className="casenums">
-                                  <span className="mono" style={{ color: "var(--red)" }}>{s.n - s.hit}✗</span>
-                                  <span className="casesub">{s.name}</span>
-                                  <span className="casesub">{s.hit}/{s.n} · {fmt(s.sum / s.n)}s</span>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </>
-                  );
-                })()}
-              </>
-            ) : (
-              <>
-                <h3>Drill stats</h3>
-                {Object.keys(variantAgg).length === 0 ? (
-                  <div className="empty">No solves yet. Times land here, grouped by subset.</div>
-                ) : (
-                  <table>
-                    <thead><tr><th>Subset</th><th>Solves</th><th>Cases seen</th><th>Best</th><th>Mean</th></tr></thead>
-                    <tbody>
-                      {Object.keys(variantAgg).sort().map((vk) => {
-                        const a = variantAgg[vk];
-                        return (
-                          <tr key={vk} className="setrow" onClick={() => setExpandedVariant(expandedVariant === vk ? null : vk)}>
-                            <td className="name">
-                              <span className="dot" style={{ background: subColor(a.subset) }} />
-                              {a.subset}{a.d ? " · " + DIRS[a.d] : ""}
-                              <span className="chev">{expandedVariant === vk ? "▾" : "▸"}</span>
-                            </td>
-                            <td className="mono">{a.n}</td>
-                            <td className="mono">{a.cases}</td>
-                            <td className="mono">{fmt(a.best)}</td>
-                            <td className="mono">{fmt(a.sum / a.n)}</td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                )}
-                {expandedVariant && variantAgg[expandedVariant] && (
-                  <div className="casegrid">
-                    {variantAgg[expandedVariant].keys
-                      .map((k) => [k, caseStats[k]])
-                      .sort((a, b) => b[1].sum / b[1].n - a[1].sum / a[1].n)
-                      .map(([k, st]) => {
-                        const uid = k.slice(0, k.lastIndexOf(SEP));
-                        const c = uidIndex.get(uid);
-                        return (
-                          <div key={k} className="casecard">
-                            {/* anchor view like recognition's grid — legacy d = 1/3 rows
-                                aren't all D-anchored raw (the variant heading keeps its d tag) */}
-                            {c ? <CaseNet state={core.stateForDir(c, 0)} w={120} /> : null}
-                            <div className="casenums">
-                              <span className="mono">{fmt(st.sum / st.n)}</span>
-                              <span className="casesub">{st.name}</span>
-                              <span className="casesub">best {fmt(st.best)} · {st.n}×</span>
-                            </div>
-                          </div>
-                        );
-                      })}
-                  </div>
-                )}
-              </>
-            )}
-          </div>
+          <StatsPanel mode={mode} recogView={recogView} centerSel={centerSel} cornersOn={cornersOn}
+            quizOptions={quizOptions} centersStats={centersStats} onelookStats={onelookStats}
+            recogStats={recogStats} variantAgg={variantAgg} expandedVariant={expandedVariant}
+            setExpandedVariant={setExpandedVariant} caseStats={caseStats} uidIndex={uidIndex}
+            subColor={subColor} />
           <div className="card">
             <h3>Session</h3>
             {sessionShown.length === 0 ? (
@@ -1420,7 +1122,308 @@ export default function SkewbTrainer() {
           </div>
         </div>
 
-        {caseBrowser && <CaseBrowser subKey={caseBrowser} />}
+        {caseBrowser && (() => {
+          const sub = m && m.subsets.find((s) => s.key === caseBrowser);
+          return sub ? <CaseBrowser sub={sub} caseOff={caseOff} caseKnown={caseKnown}
+            subColor={subColor} enabledCount={enabledCount} knownCount={knownCount}
+            onClose={() => setCaseBrowser(null)} onToggleCase={toggleCase} onToggleKnown={toggleKnown}
+            setCaseOff={setCaseOff} setCaseKnown={setCaseKnown} /> : null;
+        })()}
+      </div>
+    </div>
+  );
+}
+
+// ---------- module-scope components (stable identity — never remounted by a
+// SkewbTrainer render; everything stateful arrives via props) ----------
+
+// segmented mode-button row: one control for every [value, label] toggle strip
+function Segmented({ options, value, onChange }) {
+  return (
+    <div className="modes">
+      {options.map(([v, l]) => (
+        <button key={v} className={"mode" + (value === v ? " on" : "")} onClick={() => onChange(v)}>{l}</button>
+      ))}
+    </div>
+  );
+}
+
+// the case identity strip every reveal shares: subset tag + case name +
+// optional view badge + optional time. CaseReveal wraps it in div.reveal;
+// surfaces with their own wrapper compose CaseTagParts directly.
+function CaseTagParts({ subset, name, d, ms, subColor, msSuffix }) {
+  return (
+    <>
+      <span className="tag" style={{ "--cdot": subColor(subset) }}><span className="dot" />{subset}</span>
+      <span className="casename">{name}</span>
+      {d ? <span className="bartag">{DIRS[d]} view</span> : null}
+      {ms !== undefined ? <span className="mono">{fmt(ms)}s{msSuffix || ""}</span> : null}
+    </>
+  );
+}
+function CaseReveal({ children, wrapProps, ...parts }) {
+  return <div className="reveal" {...(wrapProps || {})}><CaseTagParts {...parts} />{children}</div>;
+}
+
+// the self-grade row: hit / miss / skip, with the keyboard hints in the labels
+function GradeRow({ hitLabel, missLabel, onGrade, onSkip }) {
+  return (
+    <div className="graderow">
+      <button className="gradebtn hit" onClick={() => onGrade(true)}>{hitLabel} ✓ (1)</button>
+      <button className="gradebtn miss" onClick={() => onGrade(false)}>{missLabel} ✗ (2)</button>
+      <button className="preset" onClick={onSkip}>skip (space)</button>
+    </div>
+  );
+}
+
+
+// one stats-grid thumbnail: the case at its anchor view + the stat lines
+function CaseCard({ c, children }) {
+  return (
+    <div className="casecard">
+      {c ? <CaseNet state={core.stateForDir(c, 0)} w={120} /> : null}
+      <div className="casenums">{children}</div>
+    </div>
+  );
+}
+
+// the per-mode stats card (the left panel): center-case accuracy, one-look
+// accuracy, recognition accuracy + missed grid, or drill times + per-case grid
+function StatsPanel({ mode, recogView, centerSel, cornersOn, quizOptions, centersStats,
+                      onelookStats, recogStats, variantAgg, expandedVariant,
+                      setExpandedVariant, caseStats, uidIndex, subColor }) {
+  return (
+    <div className="card">
+      {mode === "recog" && recogView === "centers" ? (
+        <>
+          <h3>Center cases · {centerSel.length === 3 ? centerSel.slice().sort().join(" ") : "pick 3 centers"}{cornersOn ? " + 2 corners" : ""}</h3>
+          {(() => {
+            const rows = quizOptions.map((a) => [a, centersStats[a]]).filter(([, s]) => s);
+            if (!rows.length) return <div className="empty">Answer which center case the visible centers imply (or Don’t know) — accuracy lands here per center case.</div>;
+            return (
+              <table>
+                <thead><tr><th>Center case</th><th>Seen</th><th>Correct</th><th>Don’t know</th><th>Accuracy</th></tr></thead>
+                <tbody>
+                  {rows.map(([a, s]) => (
+                    <tr key={a}>
+                      <td className="name">{a}</td>
+                      <td className="mono">{s.n}</td>
+                      <td className="mono">{s.hit}</td>
+                      <td className="mono">{s.dk || 0}</td>
+                      <td className="mono">{pct(s.hit, s.n)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            );
+          })()}
+        </>
+      ) : mode === "onelook" ? (
+        <>
+          <h3>One-look</h3>
+          {(() => {
+            const rows = Object.entries(onelookStats);
+            if (!rows.length) return <div className="empty">Reveal, then grade yourself (1 got it · 2 missed) — accuracy lands here per layer setting.</div>;
+            const rank = (k) => {
+              const { sub, rest } = parseOnelookKey(k);
+              return sub === "len" ? [0, +rest, ""] : [1, 0, rest];
+            };
+            rows.sort(([a], [b]) => {
+              const ra = rank(a), rb = rank(b);
+              return (ra[0] - rb[0]) || (ra[1] - rb[1]) || (ra[2] < rb[2] ? -1 : ra[2] > rb[2] ? 1 : 0);
+            });
+            return (
+              <table>
+                <thead><tr><th>Layer</th><th>Tries</th><th>Got it</th><th>Accuracy</th><th>Mean look</th></tr></thead>
+                <tbody>
+                  {rows.map(([k, s]) => (
+                    <tr key={k}>
+                      <td className="name">{parseOnelookKey(k).sub === "sol"
+                        ? <><AlgText text={s.label} />{s.nota ? <span className="casesub" style={{ marginLeft: 6 }}>{s.nota.toUpperCase()}</span> : null}</>
+                        : s.label}</td>
+                      <td className="mono">{s.n}</td>
+                      <td className="mono">{s.hit}</td>
+                      <td className="mono">{pct(s.hit, s.n)}</td>
+                      <td className="mono">{mean(s.sum, s.n)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            );
+          })()}
+        </>
+      ) : mode === "recog" ? (
+        <>
+          <h3>Recognition</h3>
+          {(() => {
+            const rows = Object.entries(recogStats);
+            if (!rows.length) return <div className="empty">Reveal, then grade yourself (1 recognized · 2 missed) — accuracy lands here per case.</div>;
+            const tot = rows.reduce((a, [, s]) => ({ n: a.n + s.n, hit: a.hit + s.hit, sum: a.sum + s.sum }), { n: 0, hit: 0, sum: 0 });
+            const missed = rows.filter(([, s]) => s.hit < s.n)
+              .sort((a, b) => (b[1].n - b[1].hit) - (a[1].n - a[1].hit));
+            return (
+              <>
+                <table>
+                  <thead><tr><th>Graded</th><th>Recognized</th><th>Accuracy</th><th>Mean reveal</th></tr></thead>
+                  <tbody>
+                    <tr>
+                      <td className="mono">{tot.n}</td>
+                      <td className="mono">{tot.hit}</td>
+                      <td className="mono">{pct(tot.hit, tot.n)}</td>
+                      <td className="mono">{mean(tot.sum, tot.n)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+                {missed.length > 0 && (
+                  <div className="casegrid">
+                    {missed.slice(0, 24).map(([uid, s]) => {
+                      const c = uidIndex.get(uid);
+                      return (
+                        <CaseCard key={uid} c={c}>
+                          <span className="mono" style={{ color: "var(--red)" }}>{s.n - s.hit}✗</span>
+                          <span className="casesub">{s.name}</span>
+                          <span className="casesub">{s.hit}/{s.n} · {fmt(s.sum / s.n)}s</span>
+                        </CaseCard>
+                      );
+                    })}
+                  </div>
+                )}
+              </>
+            );
+          })()}
+        </>
+      ) : (
+        <>
+          <h3>Drill stats</h3>
+          {Object.keys(variantAgg).length === 0 ? (
+            <div className="empty">No solves yet. Times land here, grouped by subset.</div>
+          ) : (
+            <table>
+              <thead><tr><th>Subset</th><th>Solves</th><th>Cases seen</th><th>Best</th><th>Mean</th></tr></thead>
+              <tbody>
+                {Object.keys(variantAgg).sort().map((vk) => {
+                  const a = variantAgg[vk];
+                  return (
+                    <tr key={vk} className="setrow" onClick={() => setExpandedVariant(expandedVariant === vk ? null : vk)}>
+                      <td className="name">
+                        <span className="dot" style={{ background: subColor(a.subset) }} />
+                        {a.subset}{a.d ? " · " + DIRS[a.d] : ""}
+                        <span className="chev">{expandedVariant === vk ? "▾" : "▸"}</span>
+                      </td>
+                      <td className="mono">{a.n}</td>
+                      <td className="mono">{a.cases}</td>
+                      <td className="mono">{fmt(a.best)}</td>
+                      <td className="mono">{fmt(a.sum / a.n)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+          {expandedVariant && variantAgg[expandedVariant] && (
+            <div className="casegrid">
+              {variantAgg[expandedVariant].keys
+                .map((k) => [k, caseStats[k]])
+                .sort((a, b) => b[1].sum / b[1].n - a[1].sum / a[1].n)
+                .map(([k, st]) => {
+                  const uid = k.slice(0, k.lastIndexOf(SEP));
+                  const c = uidIndex.get(uid);
+                  return (
+                    /* anchor view like recognition's grid — legacy d = 1/3 rows
+                       aren't all D-anchored raw (the variant heading keeps its d tag) */
+                    <CaseCard key={k} c={c}>
+                      <span className="mono">{fmt(st.sum / st.n)}</span>
+                      <span className="casesub">{st.name}</span>
+                      <span className="casesub">best {fmt(st.best)} · {st.n}×</span>
+                    </CaseCard>
+                  );
+                })}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+// alg list for a shown (case, dir). `rowText` closes over the notation toggle.
+function AlgList({ c, d, rowText }) {
+  const rows = core.algsForDir(c, d);
+  if (!rows.length) return <div className="empty">No algorithms for this view yet.</div>;
+  return (
+    <div className="alglist">
+      {rows.map((row, i) => (
+        <div key={i} className={"algrow" + (row.a.suspect ? " suspectrow" : "")}>
+          <span className={"ychip mono" + (row.k ? "" : " blank")}>{row.k ? Y_PREFIX[row.k] : ""}</span>
+          <span className={"fmkey mono" + (core.firstMoveOf(row) ? "" : " blank")}>{core.firstMoveOf(row) || "—"}</span>
+          <AlgText text={rowText(row)} />
+          {row.a.rating === "best" ? <span className="ratetag best">best</span> : null}
+          {row.a.rating === "poor" ? <span className="ratetag poor">poor</span> : null}
+          {row.a.suspect ? <span className="warntag" title="flagged suspect at import (off its case's rotation class)">⚠</span> : null}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// case browser modal. Its own group/filter selections are LOCAL state and now
+// survive chip clicks that mutate the parent (the in-body version remounted
+// and reset them). Parent state and actions come in as props.
+function CaseBrowser({ sub, caseOff, caseKnown, subColor, enabledCount, knownCount,
+                       onClose, onToggleCase, onToggleKnown, setCaseOff, setCaseKnown }) {
+  const [grp, setGrp] = useState(sub.groups[0] ? sub.groups[0].value : "");
+  const [filter, setFilter] = useState("");
+  const g = sub.groups.find((x) => x.value === grp) || sub.groups[0];
+  const filterField = sub.nav && sub.nav.filter && sub.nav.filter.field;
+  const filterVals = filterField ? [...new Set(g.cases.map((c) => c[filterField]).filter((v) => v != null))] : [];
+  let list = core.navSorted(sub, g.cases);
+  if (filter && filterField) list = list.filter((c) => c[filterField] === filter);
+  return (
+    <div className="overlay" onPointerDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="modal">
+        <div className="modalhead">
+          <div>
+            <div className="modaltitle">{sub.name} cases</div>
+            <span className="tag" style={{ "--cdot": subColor(sub.key) }}>
+              <span className="dot" />{enabledCount(sub).on}/{enabledCount(sub).total} on · {knownCount(sub)} known
+            </span>
+          </div>
+          <button className="closebtn" onClick={onClose}>{"×"}</button>
+        </div>
+        <div className="chips" style={{ marginBottom: 8 }}>
+          {sub.groups.map((x) => (
+            <button key={x.value} className={"mode" + (x.value === g.value ? " on" : "")}
+              onClick={() => { setGrp(x.value); setFilter(""); }}>{x.label}</button>
+          ))}
+          {filterVals.length > 1 && (
+            <select className="filtersel" value={filter} onChange={(e) => setFilter(e.target.value)}
+              aria-label={sub.nav.filter.label}>
+              <option value="">{sub.nav.filter.label}: all</option>
+              {filterVals.map((v) => <option key={v} value={v}>{String(v)}</option>)}
+            </select>
+          )}
+        </div>
+        <div className="presets" style={{ margin: "0 0 10px" }}>
+          <button className="preset" onClick={() => setCaseOff((s) => { const n = new Set(s); for (const c of list) n.delete(c.uid); return n; })}>enable shown</button>
+          <button className="preset" onClick={() => setCaseOff((s) => { const n = new Set(s); for (const c of list) n.add(c.uid); return n; })}>disable shown</button>
+          <button className="preset" onClick={() => setCaseKnown((s) => { const n = new Set(s); for (const c of list) n.add(knownKey(c.uid, 0)); return n; })}>mark shown known</button>
+          <button className="preset" onClick={() => setCaseKnown((s) => { const n = new Set(s); for (const c of list) n.delete(knownKey(c.uid, 0)); return n; })}>mark shown unknown</button>
+        </div>
+        <div className="chips">
+          {list.map((c) => {
+            const kn = caseKnown.has(knownKey(c.uid, 0));
+            return (
+              <span key={c.uid} className="markwrap">
+                <button className={"chip" + (caseOff.has(c.uid) ? "" : " on")}
+                  style={{ "--cdot": subColor(sub.key) }} onClick={() => onToggleCase(c.uid)}>
+                  <span className="dot" />{c.name}{kn ? " ✓" : ""}
+                </button>
+                <button className={"markbtn ok" + (kn ? " sel" : "")} title="mark known"
+                  onClick={() => onToggleKnown(c.uid)}>K</button>
+              </span>
+            );
+          })}
+        </div>
       </div>
     </div>
   );

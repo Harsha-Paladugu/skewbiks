@@ -81,13 +81,17 @@
   }
 
   // BFS over the full state space -> Int8Array distance table. Cached under KEY_DIST.
-  async function loadOrBuildDist(E, report, tick) {
-    const cached = await idbGet(KEY_DIST);
-    if (cached && cached.dist) { if (report) report('cache', 1, 1); return new Int8Array(cached.dist); }
+  // Seed-parameterized full-space BFS: distance from every reachable state to
+  // the nearest seed (0 at the seeds). One loop for the optimal-distance table
+  // (seed = solved) AND the trainer's first-layer goal table (seeds = every
+  // layer-solved state) — the trainer bundle calls this via window.OOTables.
+  // (tools/lib/bfs-dist.mjs is the deliberate Node-side twin; if you optimize
+  // one, do both.)
+  async function bfsFrom(E, seedIndices, report, tick) {
     const dist = new Int8Array(E.NSLOTS).fill(-1);
-    let frontier = new Uint32Array([E.idx(E.solved())]);
-    dist[frontier[0]] = 0;
-    let d = 0, seen = 1;
+    let frontier = Uint32Array.from(seedIndices);
+    for (const ix of frontier) dist[ix] = 0;
+    let d = 0, seen = frontier.length;
     while (frontier.length) {
       const next = [];
       for (let fi = 0; fi < frontier.length; fi++) {
@@ -104,6 +108,12 @@
       if (report) report('bfs', seen, REACHABLE);
       if (tick) await tick();
     }
+    return dist;
+  }
+  async function loadOrBuildDist(E, report, tick) {
+    const cached = await idbGet(KEY_DIST);
+    if (cached && cached.dist) { if (report) report('cache', 1, 1); return new Int8Array(cached.dist); }
+    const dist = await bfsFrom(E, [E.idx(E.solved())], report, tick);
     idbPut(KEY_DIST, { dist: dist.buffer });
     return dist;
   }
@@ -150,6 +160,6 @@
     return { reps: repsArr, depths: depthsArr };
   }
 
-  module.exports = { idbGet, idbPut, idbDel, loadOrBuildDist, loadOrBuildClassTables, KEY_DIST, KEY_CLASSES };
+  module.exports = { idbGet, idbPut, idbDel, bfsFrom, loadOrBuildDist, loadOrBuildClassTables, KEY_DIST, KEY_CLASSES };
   window.OOTables = module.exports;
 })();

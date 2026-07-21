@@ -28,6 +28,12 @@ export function loadSolverCore() {
   return globalThis.window.OOSolverCore;
 }
 
+export function loadTables() {
+  loadEngine();
+  if (!globalThis.window.OOTables) require(path.join(ROOT, 'js', 'tables.js'));
+  return globalThis.window.OOTables;
+}
+
 export function loadAlgData() {
   return JSON.parse(readFileSync(path.join(ROOT, 'data', 'skewb_algs.json'), 'utf8'));
 }
