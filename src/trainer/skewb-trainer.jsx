@@ -159,51 +159,10 @@ export default function SkewbTrainer() {
       try {
         const res = await window.storage.get(STORE_KEY);
         if (res && res.value && !cancelled) {
-          const d = JSON.parse(res.value);
-          // strict shape validation — unknown/legacy blobs are simply ignored
-          if (d && typeof d === "object") {
-            if (Array.isArray(d.subsetSel)) setSubsetSel(d.subsetSel.filter((k) => typeof k === "string"));
-            if (d.groupSel && typeof d.groupSel === "object") setGroupSel(d.groupSel);
-            if (Array.isArray(d.caseOff)) setCaseOff(new Set(d.caseOff.filter((x) => typeof x === "string")));
-            if (Array.isArray(d.caseKnown)) setCaseKnown(new Set(d.caseKnown.filter((x) => typeof x === "string")));
-            if (["all", "learning", "known"].includes(d.scope)) setScope(d.scope);
-            if (["drill", "recap", "recog", "onelook"].includes(d.mode)) setMode(d.mode);
-            if (typeof d.setupOpen === "boolean") setSetupOpen(d.setupOpen);
-            if (d.caseStats && typeof d.caseStats === "object") {
-              const cs = {};
-              for (const [k, st] of Object.entries(d.caseStats)) {
-                if (st && typeof st.n === "number" && typeof st.sum === "number") cs[k] = st;
-              }
-              setCaseStats(cs);
-            }
-            const readGrades = (src, set) => {
-              if (!src || typeof src !== "object") return;
-              const rs = {};
-              for (const [k, st] of Object.entries(src)) {
-                if (st && typeof st.n === "number" && typeof st.hit === "number") rs[k] = st;
-              }
-              set(rs);
-            };
-            readGrades(d.recogStats, setRecogStats);
-            readGrades(d.centersStats, setCentersStats);
-            readGrades(d.onelookStats, setOnelookStats);
-            if (d.recogView === "full" || d.recogView === "centers") setRecogView(d.recogView);
-            if (d.onelookView === "len" || d.onelookView === "sol") setOnelookView(d.onelookView);
-            if (Number.isInteger(d.onelookLen) && d.onelookLen >= 0 && d.onelookLen <= 6) setOnelookLen(d.onelookLen);
-            const okSol = (s) => s && typeof s.raw === "string" && s.raw.length <= 200 &&
-              (s.nota === "wca" || s.nota === "ns");
-            if (Array.isArray(d.onelookSols)) {
-              setOnelookSols(d.onelookSols.filter(okSol).slice(0, 24)
-                .map((s) => ({ raw: s.raw, nota: s.nota, on: s.on !== false })));
-            } else if (okSol(d.onelookSol)) { // pre-list blobs stored a single solution
-              setOnelookSols([{ raw: d.onelookSol.raw, nota: d.onelookSol.nota, on: true }]);
-            }
-            if (Array.isArray(d.centerSel)) {
-              const cs = d.centerSel.filter((f) => core.RECOG_CENTERS.includes(f)).slice(0, 3);
-              if (cs.length) setCenterSel(cs);
-            }
-            if (typeof d.cornersOn === "boolean") setCornersOn(d.cornersOn);
-          }
+          // shape validation lives in core.readStoredState (one descriptor
+          // drives read/write/reset); unknown/legacy blobs yield an empty patch
+          const patch = core.readStoredState(res.value);
+          for (const k of Object.keys(patch)) fieldBindings.current[k][1](patch[k]);
         }
       } catch (e) { /* first run / foreign blob */ }
       loadedStore.current = true;
@@ -245,16 +204,30 @@ export default function SkewbTrainer() {
   }, [mode, ready]);
 
   // ---------- persistence ----------
+  // the ONE per-field enumeration in the component: field -> [value, setter],
+  // in core.PERSIST_KEYS order. The boot reader, the persist payload and the
+  // debounce deps all derive from it (the field semantics live in core's
+  // PERSIST_FIELDS descriptor).
+  const FIELD_BINDINGS = {
+    subsetSel: [subsetSel, setSubsetSel], groupSel: [groupSel, setGroupSel],
+    caseOff: [caseOff, setCaseOff], caseKnown: [caseKnown, setCaseKnown],
+    scope: [scope, setScope], mode: [mode, setMode], setupOpen: [setupOpen, setSetupOpen],
+    caseStats: [caseStats, setCaseStats], recogStats: [recogStats, setRecogStats],
+    centersStats: [centersStats, setCentersStats], recogView: [recogView, setRecogView],
+    centerSel: [centerSel, setCenterSel], cornersOn: [cornersOn, setCornersOn],
+    onelookView: [onelookView, setOnelookView], onelookLen: [onelookLen, setOnelookLen],
+    onelookSols: [onelookSols, setOnelookSols], onelookStats: [onelookStats, setOnelookStats],
+  };
+  const fieldBindings = useRef(FIELD_BINDINGS);
+  fieldBindings.current = FIELD_BINDINGS;
   const saveTimer = useRef(0);
   const persist = useCallback((over) => {
     try {
-      window.storage.set(STORE_KEY, JSON.stringify({
-        subsetSel, groupSel, caseOff: [...caseOff], caseKnown: [...caseKnown],
-        scope, mode, setupOpen, caseStats, recogStats, centersStats, recogView, centerSel, cornersOn,
-        onelookView, onelookLen, onelookSols, onelookStats, ...over,
-      })).catch(() => {});
+      const values = Object.fromEntries(Object.entries(fieldBindings.current).map(([k, b]) => [k, b[0]]));
+      window.storage.set(STORE_KEY, JSON.stringify({ ...core.writeStoredState(values), ...over })).catch(() => {});
     } catch (e) {}
-  }, [subsetSel, groupSel, caseOff, caseKnown, scope, mode, setupOpen, caseStats, recogStats, centersStats, recogView, centerSel, cornersOn, onelookView, onelookLen, onelookSols, onelookStats]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- positional deps derived from the one binding table
+  }, Object.values(FIELD_BINDINGS).map((b) => b[0]));
   useEffect(() => {
     if (!loadedStore.current) return;
     clearTimeout(saveTimer.current);
@@ -730,13 +703,11 @@ export default function SkewbTrainer() {
     [session, mode]);
 
   const resetStats = () => {
-    setCaseStats({});
-    setRecogStats({});
-    setCentersStats({});
-    setOnelookStats({});
+    // every stat field, from the same descriptor persist() serializes
+    for (const k of Object.keys(core.STAT_RESET)) fieldBindings.current[k][1]({});
     setSession([]);
     setLast(null);
-    persist({ caseStats: {}, recogStats: {}, centersStats: {}, onelookStats: {} });
+    persist(core.STAT_RESET);
   };
 
   // (AlgList and CaseBrowser are MODULE-scope components — see below the

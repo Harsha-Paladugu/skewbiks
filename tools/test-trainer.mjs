@@ -59,6 +59,48 @@ t('model: navSorted orders EG2 by the authored id order', () => {
   return ids.every((v, i) => i === 0 || ids[i - 1] <= v);
 });
 
+// ---------------- persistence descriptor ----------------
+t('persistence: readStoredState matches the legacy field-by-field reader', () => {
+  const blob = JSON.stringify({
+    subsetSel: ['NS', 7, 'EG2'], groupSel: { NS: ['x'] }, caseOff: ['a', 1, 'b'],
+    caseKnown: ['k0'], scope: 'learning', mode: 'onelook', setupOpen: false,
+    caseStats: { u: { n: 2, sum: 9 }, bad: { n: 'x' } },
+    recogStats: { r: { n: 1, hit: 1 }, junk: {} },
+    centersStats: { c: { n: 3, hit: 2 } },
+    onelookStats: { o: { n: 4, hit: 0 } },
+    recogView: 'centers', centerSel: ['U', 'Q', 'R', 'F', 'B'], cornersOn: true,
+    onelookView: 'sol', onelookLen: 3,
+    onelookSol: { raw: "r' b l", nota: 'ns' },       // pre-list legacy field
+    stray: 'ignored', dirSel: 'legacy',
+  });
+  const p = core.readStoredState(blob);
+  if (JSON.stringify(p.subsetSel) !== '["NS","EG2"]') return false;
+  if (!(p.caseOff instanceof Set) || [...p.caseOff].join() !== 'a,b') return false;
+  if (p.scope !== 'learning' || p.mode !== 'onelook' || p.setupOpen !== false) return false;
+  if (JSON.stringify(p.caseStats) !== '{"u":{"n":2,"sum":9}}') return false;
+  if (JSON.stringify(p.recogStats) !== '{"r":{"n":1,"hit":1}}') return false;
+  if (JSON.stringify(p.centersStats) !== '{"c":{"n":3,"hit":2}}') return false;
+  if (JSON.stringify(p.onelookStats) !== '{"o":{"n":4,"hit":0}}') return false;
+  if (JSON.stringify(p.centerSel) !== '["U","R","F"]') return false;
+  if (p.recogView !== 'centers' || p.cornersOn !== true) return false;
+  if (p.onelookLen !== 3 || p.onelookView !== 'sol') return false;
+  if (JSON.stringify(p.onelookSols) !== JSON.stringify([{ raw: "r' b l", nota: 'ns', on: true }])) return false;
+  if ('stray' in p || 'dirSel' in p) return false;
+  const junk = core.readStoredState('not json');
+  return junk && Object.keys(junk).length === 0;
+});
+t('persistence: write -> read round-trips every field', () => {
+  const vals = { subsetSel: ['NS'], groupSel: {}, caseOff: new Set(['a']), caseKnown: new Set(['b0']),
+    scope: 'all', mode: 'drill', setupOpen: true, caseStats: {}, recogStats: {}, centersStats: {},
+    recogView: 'full', centerSel: ['U', 'R', 'F'], cornersOn: false, onelookView: 'len', onelookLen: 2,
+    onelookSols: [{ raw: 'r', nota: 'ns', on: true }], onelookStats: {} };
+  if (core.PERSIST_KEYS.length !== 17 || !core.PERSIST_KEYS.every((k) => k in vals)) return false;
+  const p = core.readStoredState(JSON.stringify(core.writeStoredState(vals)));
+  return p.caseOff instanceof Set && p.caseOff.has('a') && p.caseKnown.has('b0') &&
+    p.mode === 'drill' && p.onelookSols.length === 1 &&
+    JSON.stringify(core.STAT_RESET) === '{"caseStats":{},"recogStats":{},"centersStats":{},"onelookStats":{}}';
+});
+
 // sample cases spread across the subsets for the geometry tests
 const SAMPLE = [];
 for (const s of model.subsets) {

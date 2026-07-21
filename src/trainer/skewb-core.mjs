@@ -558,6 +558,71 @@ export function createCore(E) {
     return mask;
   }
 
+  // ---------- persisted-state descriptor (storage key skewb-trainer-v1) ----------
+  // ONE table describes every persisted field: how to validate/coerce it on
+  // read and how to serialize it on write. The component derives its reader
+  // patch, its persist payload, and its stats-reset override from this —
+  // adding a field means adding one row here + one binding in the component.
+  // A read returning undefined SKIPS the field (unknown/legacy blobs keep
+  // being ignored field-by-field, never migrated).
+  const readTimeStats = (v) => {
+    if (!v || typeof v !== "object") return undefined;
+    const out = {};
+    for (const [k, st] of Object.entries(v)) if (st && typeof st.n === "number" && typeof st.sum === "number") out[k] = st;
+    return out;
+  };
+  const readGradeStats = (v) => {
+    if (!v || typeof v !== "object") return undefined;
+    const out = {};
+    for (const [k, st] of Object.entries(v)) if (st && typeof st.n === "number" && typeof st.hit === "number") out[k] = st;
+    return out;
+  };
+  const okSol = (s) => s && typeof s.raw === "string" && s.raw.length <= 200 && (s.nota === "wca" || s.nota === "ns");
+  const PERSIST_FIELDS = {
+    subsetSel:    { read: (v) => Array.isArray(v) ? v.filter((k) => typeof k === "string") : undefined },
+    groupSel:     { read: (v) => (v && typeof v === "object") ? v : undefined },
+    caseOff:      { read: (v) => Array.isArray(v) ? new Set(v.filter((x) => typeof x === "string")) : undefined, write: (v) => [...v] },
+    caseKnown:    { read: (v) => Array.isArray(v) ? new Set(v.filter((x) => typeof x === "string")) : undefined, write: (v) => [...v] },
+    scope:        { read: (v) => ["all", "learning", "known"].includes(v) ? v : undefined },
+    mode:         { read: (v) => ["drill", "recap", "recog", "onelook"].includes(v) ? v : undefined },
+    setupOpen:    { read: (v) => typeof v === "boolean" ? v : undefined },
+    caseStats:    { read: readTimeStats, stat: true },
+    recogStats:   { read: readGradeStats, stat: true },
+    centersStats: { read: readGradeStats, stat: true },
+    recogView:    { read: (v) => (v === "full" || v === "centers") ? v : undefined },
+    centerSel:    { read: (v) => { if (!Array.isArray(v)) return undefined; const cs = v.filter((f) => RECOG_CENTERS.includes(f)).slice(0, 3); return cs.length ? cs : undefined; } },
+    cornersOn:    { read: (v) => typeof v === "boolean" ? v : undefined },
+    onelookView:  { read: (v) => (v === "len" || v === "sol") ? v : undefined },
+    onelookLen:   { read: (v) => (Number.isInteger(v) && v >= 0 && v <= 6) ? v : undefined },
+    onelookSols:  { read: (v, d) => {
+        if (Array.isArray(v)) return v.filter(okSol).slice(0, 24).map((s) => ({ raw: s.raw, nota: s.nota, on: s.on !== false }));
+        if (okSol(d.onelookSol)) return [{ raw: d.onelookSol.raw, nota: d.onelookSol.nota, on: true }]; // pre-list blobs stored one solution
+        return undefined;
+      } },
+    onelookStats: { read: readGradeStats, stat: true },
+  };
+  // stored JSON string -> patch of validated field values ({} for a foreign blob)
+  function readStoredState(raw) {
+    let d = null;
+    try { d = JSON.parse(raw); } catch (e) { return {}; }
+    if (!d || typeof d !== "object") return {};
+    const patch = {};
+    for (const [k, f] of Object.entries(PERSIST_FIELDS)) {
+      const v = f.read(d[k], d);
+      if (v !== undefined) patch[k] = v;
+    }
+    return patch;
+  }
+  // current field values -> the JSON-ready storage object
+  function writeStoredState(values) {
+    const out = {};
+    for (const [k, f] of Object.entries(PERSIST_FIELDS)) out[k] = f.write ? f.write(values[k]) : values[k];
+    return out;
+  }
+  // the persist override that clears every stat field (Reset all stats)
+  const STAT_RESET = {};
+  for (const [k, f] of Object.entries(PERSIST_FIELDS)) if (f.stat) STAT_RESET[k] = {};
+
   return {
     buildModel, navSorted, casePres, stateForDir, algsForDir, firstMoveOf, caseOfState,
     maskedScramble, randomReachable, descend, descentLines, toWCA,
@@ -565,6 +630,7 @@ export function createCore(E) {
     randomAtFLDist, randomDLayerState, preimageOfLayer, physPermOf,
     centerVocab, quizAnswer,
     pickCorners, viewSignature, maskForView,
+    readStoredState, writeStoredState, STAT_RESET, PERSIST_KEYS: Object.keys(PERSIST_FIELDS),
     MASK_MIN, MASK_MAX, RECOG_CENTERS, RECOG_CORNERS,
   };
 }
