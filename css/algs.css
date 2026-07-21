@@ -64,8 +64,6 @@
 .algnet.empty { height: 94px; background: var(--panel2); border-radius: 8px; }
 .sidebody { flex: 1; min-width: 0; }
 .sidehd { font: 600 12px var(--mono); color: var(--mut); text-transform: uppercase; letter-spacing: .04em; margin: 0 0 6px; }
-/* alg lists flow into as many ~250px columns as fit, so they use the full width */
-.alglist { columns: 250px; column-gap: 28px; }
 /* first-move table: the 8 possible first moves, each with its alg(s).
    The first-move keys are a fixed-width highlighted chip column so they line
    up; rotations inside the alg text are tinted blue (regrips at a glance). */
@@ -106,7 +104,7 @@
 .addin { flex: 1; min-width: 200px; background: var(--panel2); border: 1px solid var(--line2); color: var(--txt);
   border-radius: 8px; padding: .45em .7em; font: 500 13px var(--mono); }
 .addin:focus { outline: none; border-color: var(--mut); }
-.btn.sm, .primary.sm, .ghost.sm { font: 600 12px var(--body); padding: .45em .9em; border-radius: 8px; cursor: pointer; }
+.primary.sm, .ghost.sm { font: 600 12px var(--body); padding: .45em .9em; border-radius: 8px; cursor: pointer; }
 .addfb { font: 500 12px var(--body); flex-basis: 100%; }
 .addfb.ok { color: var(--green); }
 .addfb.err { color: var(--red); }

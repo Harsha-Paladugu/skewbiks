@@ -29,7 +29,6 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{
 .ghost:hover{color:var(--txt);border-color:var(--mut)}
 .ghost.off{opacity:.3;pointer-events:none}
 .ghost.sm{padding:.3em .7em;font-size:13px}
-.ghost.big{font-size:16px;padding:.7em 1.4em}
 .danger{background:transparent;color:var(--red);border:1px solid rgba(232,71,61,.5);padding:.55em 1em}
 .danger:hover{background:rgba(232,71,61,.12)}
 /* top bar */

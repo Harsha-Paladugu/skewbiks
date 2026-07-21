@@ -2,7 +2,7 @@
    The app was written against its own token names; map them onto the site tokens. */
 :root{
   --bodyf:var(--body); --monof:var(--mono); --dimc:var(--dim);
-  --accent:var(--yellow); --text:var(--txt); --faint:var(--dim); --bg:transparent;
+  --accent:var(--yellow);
 }
 .app { min-height: calc(100vh - 62px); color: var(--txt); font-family: var(--bodyf);
   display: flex; flex-direction: column; align-items: center; padding: 30px 24px 80px;
